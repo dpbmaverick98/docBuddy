@@ -6,12 +6,17 @@ from typing import List, Dict, Optional
 from indexer.vector_store import VectorStore
 from anthropic import Anthropic
 import os
+import hashlib
+import json
 from dotenv import load_dotenv
 
 load_dotenv()
 
 
 class DocSummarizer:
+    # Class-level cache to persist across instances
+    _summary_cache: Dict[str, Dict] = {}
+    
     def __init__(self, collection_name: str = "docs"):
         """
         Initialize doc summarizer
@@ -28,6 +33,30 @@ class DocSummarizer:
         
         self.claude = Anthropic(api_key=api_key)
         self.model = "claude-sonnet-4-5"
+    
+    def _get_cache_key(self, doc_path: str, max_length: int, doc_chunks: List[Dict]) -> str:
+        """
+        Generate a cache key from doc_path, max_length, and content hash
+        
+        Args:
+            doc_path: Document path
+            max_length: Maximum summary length
+            doc_chunks: Document chunks used for summary
+            
+        Returns:
+            Cache key string
+        """
+        # Create a hash of the first chunk's content to ensure cache key uniqueness
+        content_hash = ""
+        if doc_chunks:
+            # Use first chunk's content and heading for cache key
+            first_chunk_content = doc_chunks[0].get('content', '')[:500]  # First 500 chars
+            first_chunk_heading = doc_chunks[0].get('heading', '')
+            content_hash = hashlib.md5(
+                f"{first_chunk_heading}:{first_chunk_content}".encode()
+            ).hexdigest()[:8]
+        
+        return f"{doc_path}:{max_length}:{content_hash}"
     
     def get_summaries(
         self,
@@ -87,16 +116,28 @@ class DocSummarizer:
                             })
                     
                     if doc_chunks:
-                        # Generate summary from chunks
-                        summary = self._generate_summary(doc_chunks, max_length)
+                        # Check cache first
+                        cache_key = self._get_cache_key(doc_path, max_length, doc_chunks)
+                        cached_summary = DocSummarizer._summary_cache.get(cache_key)
                         
-                        summaries.append({
-                            'doc_path': doc_path,
-                            'summary': summary,
-                            'url': doc_chunks[0].get('url', ''),
-                            'title': doc_chunks[0].get('title', ''),
-                            'heading': doc_chunks[0].get('heading', '')
-                        })
+                        if cached_summary:
+                            # Use cached summary
+                            summaries.append(cached_summary)
+                        else:
+                            # Generate summary from chunks
+                            summary_text = self._generate_summary(doc_chunks, max_length)
+                            
+                            summary_data = {
+                                'doc_path': doc_path,
+                                'summary': summary_text,
+                                'url': doc_chunks[0].get('url', ''),
+                                'title': doc_chunks[0].get('title', ''),
+                                'heading': doc_chunks[0].get('heading', '')
+                            }
+                            
+                            # Store in cache
+                            DocSummarizer._summary_cache[cache_key] = summary_data
+                            summaries.append(summary_data)
                     else:
                         summaries.append({
                             'doc_path': doc_path,
@@ -146,6 +187,13 @@ class DocSummarizer:
             for chunk in doc_chunks[:3]  # Use first 3 chunks
         ])
         
+        # Calculate max_tokens based on max_length (roughly 4 chars per token, add buffer)
+        # Ensure minimum of 500 tokens and maximum reasonable limit
+        calculated_max_tokens = max(500, min(int(max_length / 3), 4000))
+        
+        # Increase input content limit for longer summaries
+        input_limit = min(4000, max_length * 2) if max_length > 1000 else 2000
+        
         prompt = f"""Summarize the following documentation section in {max_length} characters or less.
 
 Focus on WHAT DEVELOPERS NEED TO DO:
@@ -158,14 +206,15 @@ Focus on WHAT DEVELOPERS NEED TO DO:
 Write in an action-oriented, developer-focused style. Use imperative mood (e.g., "Set up...", "Configure...", "Call...", "Install...").
 
 Documentation:
-{combined_content[:2000]}  # Limit input size
+{combined_content[:input_limit]}
 
 Provide a concise, actionable summary for developers."""
 
         try:
             response = self.claude.messages.create(
                 model=self.model,
-                max_tokens=500,
+                max_tokens=calculated_max_tokens,
+                temperature=0,  # Set temperature to 0 for deterministic outputs
                 messages=[{
                     "role": "user",
                     "content": prompt
@@ -182,9 +231,23 @@ Provide a concise, actionable summary for developers."""
             
             summary = summary.strip()
             
-            # Truncate if too long
+            # Truncate if too long, preserving complete sentences
             if len(summary) > max_length:
-                summary = summary[:max_length].rsplit('.', 1)[0] + '.'
+                # Try to find a good sentence boundary
+                truncated = summary[:max_length]
+                # Look for sentence endings (., !, ?) near the end
+                for punct in ['.', '!', '?', '\n']:
+                    last_punct = truncated.rfind(punct)
+                    if last_punct > max_length * 0.7:  # If found in last 30% of text
+                        summary = truncated[:last_punct + 1].strip()
+                        break
+                else:
+                    # No good sentence boundary found, try word boundary
+                    last_space = truncated.rfind(' ')
+                    if last_space > max_length * 0.8:  # If found in last 20% of text
+                        summary = truncated[:last_space].strip() + '...'
+                    else:
+                        summary = truncated.strip() + '...'
             
             return summary
             

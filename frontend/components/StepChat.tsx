@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
@@ -23,6 +23,12 @@ export default function StepChat({ step, summaries }: StepChatProps) {
   const [messages, setMessages] = useState<Array<{ role: "user" | "assistant"; content: string }>>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, loading]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -70,7 +76,13 @@ export default function StepChat({ step, summaries }: StepChatProps) {
     <div className="space-y-4">
       <h4 className="font-semibold text-gray-900">Ask questions about this step</h4>
       
-      <div className="bg-gray-50 rounded-lg p-4 max-h-64 overflow-y-auto space-y-3">
+      <div 
+        className={`bg-gray-50 rounded-lg p-4 overflow-y-auto space-y-3 transition-all duration-300 ${
+          messages.length === 0 
+            ? "max-h-32" 
+            : "min-h-[800px] max-h-[1800px]"
+        }`}
+      >
         {messages.length === 0 ? (
           <p className="text-sm text-gray-500 text-center py-4">
             Ask a question about this step to get help with implementation
@@ -128,9 +140,10 @@ export default function StepChat({ step, summaries }: StepChatProps) {
                             </code>
                           );
                         },
-                        pre: ({ node, ...props }) => (
-                          <div {...props} />
-                        ),
+                        pre: ({ node, ...props }: any) => {
+                          const { ref, ...restProps } = props;
+                          return <div {...restProps} />;
+                        },
                         ul: ({ node, ...props }) => (
                           <ul className="list-disc list-inside text-sm text-gray-700 mb-1.5 space-y-0.5" {...props} />
                         ),
@@ -166,6 +179,7 @@ export default function StepChat({ step, summaries }: StepChatProps) {
             </div>
           </div>
         )}
+        <div ref={messagesEndRef} />
       </div>
 
       <form onSubmit={handleSubmit} className="flex gap-2">

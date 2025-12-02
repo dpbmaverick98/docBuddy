@@ -34,7 +34,11 @@ async def generate_journey(request: JourneyRequest):
         }
     """
     try:
-        generator = JourneyGenerator()
+        # Use optimized defaults: RAG enabled, temperature 0.7 for balanced creativity
+        generator = JourneyGenerator(
+            use_rag=True,
+            temperature=0.7
+        )
         journey = generator.generate_journey(
             user_query=request.query,
             max_steps=request.max_steps

@@ -17,14 +17,16 @@ class DocSummarizer:
     # Class-level cache to persist across instances
     _summary_cache: Dict[str, Dict] = {}
     
-    def __init__(self, collection_name: str = "docs"):
+    def __init__(self, collection_name: str = "docs", temperature: float = 0.3):
         """
         Initialize doc summarizer
         
         Args:
             collection_name: ChromaDB collection name
+            temperature: Temperature for summarization (lower = more focused, default: 0.3)
         """
         self.vector_store = VectorStore(collection_name=collection_name)
+        self.temperature = temperature
         
         # Initialize Claude for summarization
         api_key = os.getenv('ANTHROPIC_API_KEY')
@@ -214,7 +216,7 @@ Provide a concise, actionable summary for developers."""
             response = self.claude.messages.create(
                 model=self.model,
                 max_tokens=calculated_max_tokens,
-                temperature=0,  # Set temperature to 0 for deterministic outputs
+                temperature=self.temperature,  # Use configured temperature
                 messages=[{
                     "role": "user",
                     "content": prompt

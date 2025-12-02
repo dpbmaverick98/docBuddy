@@ -10,14 +10,20 @@ load_dotenv()
 
 
 class StepQAService:
-    def __init__(self):
-        """Initialize Q&A service"""
+    def __init__(self, temperature: float = 0.7):
+        """
+        Initialize Q&A service
+        
+        Args:
+            temperature: Temperature for Q&A (higher = more conversational)
+        """
         api_key = os.getenv('ANTHROPIC_API_KEY')
         if not api_key:
             raise ValueError("ANTHROPIC_API_KEY environment variable not set")
         
         self.claude = Anthropic(api_key=api_key)
         self.model = "claude-sonnet-4-5"
+        self.temperature = temperature
     
     def answer_question(
         self,
@@ -60,6 +66,7 @@ Keep the answer concise but complete. If you don't have enough information from 
             response = self.claude.messages.create(
                 model=self.model,
                 max_tokens=1000,
+                temperature=self.temperature,  # Use configured temperature
                 messages=[{
                     "role": "user",
                     "content": prompt

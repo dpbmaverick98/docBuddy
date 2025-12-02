@@ -18,6 +18,10 @@ chromadb==0.4.18
 # Pin NumPy to < 2.0 for ChromaDB compatibility
 numpy<2.0.0
 
+# RAG Framework
+llama-index==0.10.0
+llama-index-vector-stores-chroma==0.1.0
+
 # Embeddings
 cohere==4.37
 

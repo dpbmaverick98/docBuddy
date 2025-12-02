@@ -5,10 +5,12 @@ A documentation onboarding system that creates step-by-step journeys through doc
 ## Architecture
 
 - **Backend**: Python (FastAPI) - indexing, journey generation, Q&A
-- **Frontend**: Next.js + React - chat interface, canvas visualization
+- **Frontend**: Next.js + React - chat interface, timeline visualization
 - **Vector DB**: ChromaDB (self-hosted)
+- **RAG Framework**: LlamaIndex (context optimization, post-processing)
 - **Embeddings**: Cohere embed-multilingual-v3.0
-- **LLM**: Claude 3.5 Sonnet (planning) + Gemini Flash (Q&A)
+- **LLM**: Claude Sonnet 4.5 (journey generation, summaries, Q&A)
+- **Features**: Intent extraction, prompt chaining, temperature control
 
 ## Quick Start
 
@@ -90,6 +92,30 @@ Content-Type: application/json
 {
   "query": "I want to set up authentication",
   "max_steps": 5
+}
+```
+
+### Get Doc Summaries
+```bash
+POST /api/docs/summaries
+Content-Type: application/json
+
+{
+  "doc_paths": ["/wallets/gas-and-asset-management/gas/overview.md"],
+  "max_length": 3000
+}
+```
+
+### Ask Step Question
+```bash
+POST /api/journey/ask-step
+Content-Type: application/json
+
+{
+  "step_title": "Set up authentication",
+  "step_description": "Configure Google OAuth...",
+  "context": "Summary of relevant docs...",
+  "question": "How do I configure this?"
 }
 ```
 

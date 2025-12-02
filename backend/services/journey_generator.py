@@ -1,26 +1,65 @@
 """
 Journey generation service
 Takes user goal → searches docs → generates step-by-step journey
+Now with LlamaIndex RAG, intent extraction, and prompt chaining
 """
 import os
+import sys
 import json
+from pathlib import Path
 from typing import List, Dict, Optional
 from anthropic import Anthropic
-from indexer.vector_store import VectorStore
 from dotenv import load_dotenv
+
+# Add parent directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from indexer.vector_store import VectorStore
+from services.rag_engine import RAGEngine
+from services.intent_extractor import IntentExtractor
+from services.prompt_chain import PromptChain
 
 load_dotenv()
 
 
 class JourneyGenerator:
-    def __init__(self, collection_name: str = "docs"):
+    def __init__(
+        self,
+        collection_name: str = "docs",
+        use_rag: bool = True,
+        temperature: float = 0.7
+    ):
         """
         Initialize journey generator
         
         Args:
             collection_name: ChromaDB collection name
+            use_rag: Use LlamaIndex RAG engine (default: True)
+            temperature: Temperature for journey generation (0.0-1.0)
         """
-        self.vector_store = VectorStore(collection_name=collection_name)
+        self.use_rag = use_rag
+        self.temperature = temperature
+        
+        if use_rag:
+            # Use LlamaIndex-powered RAG engine
+            try:
+                self.rag_engine = RAGEngine(collection_name=collection_name)
+                self.vector_store = None
+            except Exception as e:
+                print(f"⚠️  Failed to initialize RAG engine: {e}")
+                print("   Falling back to direct vector store")
+                self.use_rag = False
+                self.vector_store = VectorStore(collection_name=collection_name)
+                self.rag_engine = None
+        else:
+            # Use direct vector store (legacy)
+            self.vector_store = VectorStore(collection_name=collection_name)
+            self.rag_engine = None
+        
+        # Initialize intent extractor
+        self.intent_extractor = IntentExtractor()
+        
+        # Initialize prompt chain
+        self.prompt_chain = PromptChain(temperature=temperature)
         
         # Initialize Claude
         api_key = os.getenv('ANTHROPIC_API_KEY')
@@ -28,23 +67,36 @@ class JourneyGenerator:
             raise ValueError("ANTHROPIC_API_KEY environment variable not set")
         
         self.claude = Anthropic(api_key=api_key)
-        # Use correct model name for Anthropic messages API
-        self.model = "claude-sonnet-4-5"  # Correct model name format
+        self.model = "claude-sonnet-4-5"
     
-    def generate_journey(self, user_query: str, max_steps: int = 10) -> Dict:
+    def generate_journey(
+        self,
+        user_query: str,
+        max_steps: int = 10
+    ) -> Dict:
         """
         Generate a step-by-step journey from user query
+        Now with intent extraction and optimized RAG
         
         Args:
             user_query: User's goal (e.g., "I want to set up authentication")
             max_steps: Maximum number of steps to generate
+            temperature: Override default temperature
         
         Returns:
             Dict with journey_id, goal, steps, etc.
         """
-        # Step 1: Search for relevant documentation
-        print(f"🔍 Searching docs for: {user_query}")
-        relevant_docs = self._search_relevant_docs(user_query, top_k=20)
+        # Step 1: Extract intent
+        print(f"🧠 Extracting intent from: {user_query}")
+        intent = self.intent_extractor.extract_intent(user_query)
+        print(f"✅ Intent: {intent.get('goal')} ({intent.get('complexity')})")
+        
+        # Step 2: Search for relevant documentation (with intent)
+        print(f"🔍 Searching docs with optimized RAG...")
+        if self.use_rag:
+            relevant_docs = self._search_with_rag(user_query, intent, top_k=20)
+        else:
+            relevant_docs = self._search_relevant_docs(user_query, top_k=20)
         
         if not relevant_docs:
             return {
@@ -54,12 +106,19 @@ class JourneyGenerator:
         
         print(f"✅ Found {len(relevant_docs)} relevant doc sections")
         
-        # Step 2: Generate journey steps using Claude
+        # Step 3: Optimize context
+        print(f"📊 Optimizing context...")
+        optimized_docs = self.prompt_chain.optimize_context(relevant_docs, max_tokens=3000)
+        print(f"✅ Selected {len(optimized_docs)} docs for context")
+        
+        # Step 4: Generate journey steps using Claude (with optimized context)
         print(f"🧠 Generating journey steps...")
         steps = self._generate_steps_with_claude(
             user_query=user_query,
-            relevant_docs=relevant_docs,
-            max_steps=max_steps
+            intent=intent,
+            relevant_docs=optimized_docs,
+            max_steps=max_steps,
+            temperature=self.temperature
         )
         
         if not steps:
@@ -68,19 +127,63 @@ class JourneyGenerator:
                 'query': user_query
             }
         
-        # Step 3: Validate steps (verify docs exist)
+        # Step 5: Validate steps (verify docs exist)
         print(f"✅ Validating {len(steps)} steps...")
-        validated_steps = self._validate_steps(steps, relevant_docs)
+        validated_steps = self._validate_steps(steps, optimized_docs)
         
-        # Step 4: Format response
+        # Step 6: Format response
         journey = {
             'goal': user_query,
+            'intent': intent,
             'steps': validated_steps,
             'total_steps': len(validated_steps),
             'estimated_time': self._estimate_total_time(validated_steps)
         }
         
         return journey
+    
+    def _search_with_rag(
+        self,
+        query: str,
+        intent: Dict,
+        top_k: int = 20
+    ) -> List[Dict]:
+        """
+        Search using LlamaIndex RAG engine with intent
+        
+        Args:
+            query: Search query
+            intent: Extracted intent
+            top_k: Number of results
+        
+        Returns:
+            List of doc chunks
+        """
+        results = self.rag_engine.query_with_intent(query, intent, top_k=top_k)
+        
+        # Format results to match expected structure
+        formatted = []
+        seen_docs = set()
+        
+        for result in results:
+            metadata = result.get('metadata', {})
+            doc_path = metadata.get('doc_path', '')
+            heading = metadata.get('heading', '')
+            
+            # Avoid duplicates
+            key = f"{doc_path}:{heading}"
+            if key not in seen_docs:
+                seen_docs.add(key)
+                formatted.append({
+                    'doc_path': doc_path,
+                    'doc_url': metadata.get('doc_url', ''),
+                    'doc_title': metadata.get('doc_title', ''),
+                    'heading': heading,
+                    'content': result.get('content', '')[:500],
+                    'distance': 1 - (result.get('score', 0) or 0)  # Convert score to distance
+                })
+        
+        return formatted
     
     def _search_relevant_docs(self, query: str, top_k: int = 20) -> List[Dict]:
         """
@@ -119,8 +222,10 @@ class JourneyGenerator:
     def _generate_steps_with_claude(
         self,
         user_query: str,
+        intent: Dict,
         relevant_docs: List[Dict],
-        max_steps: int
+        max_steps: int,
+        temperature: float = 0.7
     ) -> List[Dict]:
         """
         Use Claude to generate ordered journey steps
@@ -131,9 +236,19 @@ class JourneyGenerator:
         # Format docs for prompt
         docs_text = self._format_docs_for_prompt(relevant_docs)
         
+        # Build enhanced prompt with intent
+        intent_context = ""
+        if intent.get('platform'):
+            intent_context += f"\nPlatform: {intent['platform']}"
+        if intent.get('complexity'):
+            intent_context += f"\nUser level: {intent['complexity']}"
+        if intent.get('requirements'):
+            intent_context += f"\nRequirements: {', '.join(intent['requirements'])}"
+        
         prompt = f"""You are a documentation expert helping users navigate complex documentation.
 
 User wants to: {user_query}
+{intent_context}
 
 Available documentation sections:
 {docs_text}
@@ -172,10 +287,11 @@ Rules:
 Return ONLY the JSON, no other text."""
 
         try:
-            # Use messages API (Anthropic SDK v0.34+)
+            # Use messages API with temperature control
             response = self.claude.messages.create(
                 model=self.model,
                 max_tokens=4000,
+                temperature=temperature,  # Use provided temperature
                 messages=[{
                     "role": "user",
                     "content": prompt

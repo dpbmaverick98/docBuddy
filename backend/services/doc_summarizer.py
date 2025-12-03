@@ -1,11 +1,11 @@
 """
 Documentation summarizer service
 Generates summaries from doc content stored in vector DB
+Uses Claude Sonnet 4.5
 """
 from typing import List, Dict, Optional
 from indexer.vector_store import VectorStore
-from anthropic import Anthropic
-import os
+from services.llm_service import ClaudeService
 import hashlib
 import json
 from dotenv import load_dotenv
@@ -28,13 +28,8 @@ class DocSummarizer:
         self.vector_store = VectorStore(collection_name=collection_name)
         self.temperature = temperature
         
-        # Initialize Claude for summarization
-        api_key = os.getenv('ANTHROPIC_API_KEY')
-        if not api_key:
-            raise ValueError("ANTHROPIC_API_KEY environment variable not set")
-        
-        self.claude = Anthropic(api_key=api_key)
-        self.model = "claude-sonnet-4-5"
+        # Use Claude for summarization
+        self.llm = ClaudeService()
     
     def _get_cache_key(self, doc_path: str, max_length: int, doc_chunks: List[Dict]) -> str:
         """
@@ -213,23 +208,12 @@ Documentation:
 Provide a concise, actionable summary for developers."""
 
         try:
-            response = self.claude.messages.create(
-                model=self.model,
+            # Use Claude for summarization
+            summary = self.llm.generate(
+                prompt=prompt,
                 max_tokens=calculated_max_tokens,
-                temperature=self.temperature,  # Use configured temperature
-                messages=[{
-                    "role": "user",
-                    "content": prompt
-                }]
+                temperature=self.temperature
             )
-            
-            # Extract text from response
-            summary = ""
-            for block in response.content:
-                if hasattr(block, 'text'):
-                    summary += block.text
-                elif isinstance(block, str):
-                    summary += block
             
             summary = summary.strip()
             

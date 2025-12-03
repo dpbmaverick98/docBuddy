@@ -8,6 +8,19 @@ const nextConfig = {
       },
     ];
   },
+  // Increase timeout for API routes (proxy to backend)
+  api: {
+    responseLimit: false,
+    bodyParser: {
+      sizeLimit: '1mb',
+    },
+  },
+  // Increase timeout for server-side operations
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '1mb',
+    },
+  },
 };
 
 module.exports = nextConfig;

@@ -1,9 +1,9 @@
 """
 Step Q&A service
 Answers questions about specific steps using context from summaries
+Uses Claude Sonnet 4.5
 """
-from anthropic import Anthropic
-import os
+from services.llm_service import ClaudeService
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -12,17 +12,13 @@ load_dotenv()
 class StepQAService:
     def __init__(self, temperature: float = 0.7):
         """
-        Initialize Q&A service
+        Initialize Q&A service with Claude
         
         Args:
             temperature: Temperature for Q&A (higher = more conversational)
         """
-        api_key = os.getenv('ANTHROPIC_API_KEY')
-        if not api_key:
-            raise ValueError("ANTHROPIC_API_KEY environment variable not set")
-        
-        self.claude = Anthropic(api_key=api_key)
-        self.model = "claude-sonnet-4-5"
+        # Use Claude for Q&A
+        self.llm = ClaudeService()
         self.temperature = temperature
     
     def answer_question(
@@ -63,23 +59,12 @@ Provide a clear, actionable answer focused on what the developer needs to do. In
 Keep the answer concise but complete. If you don't have enough information from the context, say so and suggest checking the full documentation."""
 
         try:
-            response = self.claude.messages.create(
-                model=self.model,
+            # Use Claude for Q&A
+            answer = self.llm.generate(
+                prompt=prompt,
                 max_tokens=1000,
-                temperature=self.temperature,  # Use configured temperature
-                messages=[{
-                    "role": "user",
-                    "content": prompt
-                }]
+                temperature=self.temperature
             )
-            
-            # Extract text from response
-            answer = ""
-            for block in response.content:
-                if hasattr(block, 'text'):
-                    answer += block.text
-                elif isinstance(block, str):
-                    answer += block
             
             return answer.strip()
             

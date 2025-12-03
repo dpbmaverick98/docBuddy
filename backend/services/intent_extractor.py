@@ -1,25 +1,20 @@
 """
 Intent extraction service
 Extracts user intent from queries for better context understanding
+Uses Claude Sonnet 4.5
 """
-from anthropic import Anthropic
-import os
 import json
 from typing import Dict, Optional
 from dotenv import load_dotenv
+from services.llm_service import ClaudeService
 
 load_dotenv()
 
 
 class IntentExtractor:
     def __init__(self):
-        """Initialize intent extractor"""
-        api_key = os.getenv('ANTHROPIC_API_KEY')
-        if not api_key:
-            raise ValueError("ANTHROPIC_API_KEY environment variable not set")
-        
-        self.claude = Anthropic(api_key=api_key)
-        self.model = "claude-sonnet-4-5"
+        """Initialize intent extractor with Claude"""
+        self.llm = ClaudeService()
     
     def extract_intent(self, user_query: str) -> Dict:
         """
@@ -50,31 +45,28 @@ Return ONLY valid JSON:
 }}"""
 
         try:
-            response = self.claude.messages.create(
-                model=self.model,
+            # Use Claude for intent extraction
+            response_text = self.llm.generate(
+                prompt=prompt,
                 max_tokens=500,
-                temperature=0.3,  # Lower temp for more deterministic extraction
-                messages=[{
-                    "role": "user",
-                    "content": prompt
-                }]
+                temperature=0.3  # Lower temp for more deterministic extraction
             )
-            
-            # Extract JSON from response
-            response_text = ""
-            for block in response.content:
-                if hasattr(block, 'text'):
-                    response_text += block.text
-                elif isinstance(block, str):
-                    response_text += block
             
             response_text = response_text.strip()
             
             # Try to extract JSON if wrapped in markdown
             if "```json" in response_text:
-                response_text = response_text.split("```json")[1].split("```")[0].strip()
+                parts = response_text.split("```json")
+                if len(parts) > 1:
+                    json_part = parts[1].split("```")[0].strip()
+                    if json_part:
+                        response_text = json_part
             elif "```" in response_text:
-                response_text = response_text.split("```")[1].split("```")[0].strip()
+                parts = response_text.split("```")
+                if len(parts) > 1:
+                    json_part = parts[1].split("```")[0].strip()
+                    if json_part:
+                        response_text = json_part
             
             intent = json.loads(response_text)
             return intent

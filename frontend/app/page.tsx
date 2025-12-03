@@ -33,23 +33,65 @@ export default function Home() {
     setJourney(null);
 
     try {
+      // Create AbortController for timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minute timeout
+      
       const response = await fetch("/api/journey/generate", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ query, max_steps: 10 }),
+        signal: controller.signal,
       });
 
+      clearTimeout(timeoutId);
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || "Failed to generate journey");
+        // Check if response is JSON
+        const contentType = response.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+          const errorData = await response.json();
+          throw new Error(errorData.detail || "Failed to generate journey");
+        } else {
+          // Non-JSON error response (likely HTML error page)
+          const errorText = await response.text();
+          throw new Error(`Server error (${response.status}): ${errorText.substring(0, 100)}`);
+        }
+      }
+
+      // Ensure response is JSON
+      const contentType = response.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        const text = await response.text();
+        throw new Error(`Expected JSON but got: ${contentType}. Response: ${text.substring(0, 200)}`);
       }
 
       const data = await response.json();
-      setJourney(data);
+      console.log("✅ Journey data received:", data);
+      console.log("✅ Steps count:", data.steps?.length);
+      console.log("✅ Total steps:", data.total_steps);
+      console.log("✅ Goal:", data.goal);
+      
+      // Ensure data structure matches interface
+      if (data.steps && Array.isArray(data.steps) && data.steps.length > 0) {
+        setJourney(data);
+      } else {
+        console.error("❌ No steps in response:", data);
+        throw new Error("No steps generated");
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred");
+      if (err instanceof Error) {
+        if (err.name === 'AbortError') {
+          setError("Request timed out. The journey generation is taking longer than expected. Please try again.");
+        } else {
+          setError(err.message);
+        }
+      } else {
+        setError("An unexpected error occurred");
+      }
+      console.error("Journey generation error:", err);
     } finally {
       setLoading(false);
     }

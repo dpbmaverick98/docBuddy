@@ -8,7 +8,6 @@ import sys
 import json
 from pathlib import Path
 from typing import List, Dict, Optional
-from anthropic import Anthropic
 from dotenv import load_dotenv
 
 # Add parent directory to path for imports
@@ -17,6 +16,7 @@ from indexer.vector_store import VectorStore
 from services.rag_engine import RAGEngine
 from services.intent_extractor import IntentExtractor
 from services.prompt_chain import PromptChain
+from services.llm_service import ClaudeService
 
 load_dotenv()
 
@@ -61,13 +61,8 @@ class JourneyGenerator:
         # Initialize prompt chain
         self.prompt_chain = PromptChain(temperature=temperature)
         
-        # Initialize Claude
-        api_key = os.getenv('ANTHROPIC_API_KEY')
-        if not api_key:
-            raise ValueError("ANTHROPIC_API_KEY environment variable not set")
-        
-        self.claude = Anthropic(api_key=api_key)
-        self.model = "claude-sonnet-4-5"
+        # Use Claude for journey generation
+        self.llm = ClaudeService()
     
     def generate_journey(
         self,
@@ -287,44 +282,51 @@ Rules:
 Return ONLY the JSON, no other text."""
 
         try:
-            # Use messages API with temperature control
-            response = self.claude.messages.create(
-                model=self.model,
+            # Use Claude for journey generation
+            response_text = self.llm.generate(
+                prompt=prompt,
                 max_tokens=4000,
-                temperature=temperature,  # Use provided temperature
-                messages=[{
-                    "role": "user",
-                    "content": prompt
-                }]
+                temperature=temperature
             )
-            
-            # Extract text from response
-            # Response structure: response.content is a list of TextBlock objects
-            response_text = ""
-            for block in response.content:
-                if hasattr(block, 'text'):
-                    response_text += block.text
-                elif isinstance(block, str):
-                    response_text += block
             
             response_text = response_text.strip()
             
             # Try to extract JSON if wrapped in markdown code blocks
             if "```json" in response_text:
-                response_text = response_text.split("```json")[1].split("```")[0].strip()
+                parts = response_text.split("```json")
+                if len(parts) > 1:
+                    json_part = parts[1].split("```")[0].strip()
+                    if json_part:
+                        response_text = json_part
             elif "```" in response_text:
-                response_text = response_text.split("```")[1].split("```")[0].strip()
+                parts = response_text.split("```")
+                if len(parts) > 1:
+                    json_part = parts[1].split("```")[0].strip()
+                    if json_part:
+                        response_text = json_part
+            
+            # Debug: Print response preview
+            print(f"📝 LLM Response preview (first 300 chars): {response_text[:300]}")
             
             # Parse JSON
             journey_data = json.loads(response_text)
-            return journey_data.get('steps', [])
+            steps = journey_data.get('steps', [])
+            if not steps:
+                print(f"⚠️  No steps in parsed JSON. Full response keys: {list(journey_data.keys())}")
+                print(f"⚠️  Response preview: {response_text[:500]}")
+            else:
+                print(f"✅ Parsed {len(steps)} steps successfully")
+            return steps
             
         except json.JSONDecodeError as e:
-            print(f"❌ Failed to parse Claude response as JSON: {e}")
-            print(f"Response: {response_text[:500]}")
+            print(f"❌ Failed to parse LLM response as JSON: {e}")
+            print(f"❌ Response (first 500 chars): {response_text[:500]}")
+            print(f"❌ Response (last 200 chars): {response_text[-200:]}")
             return []
         except Exception as e:
-            print(f"❌ Error calling Claude: {e}")
+            print(f"❌ Error calling LLM: {e}")
+            import traceback
+            traceback.print_exc()
             return []
     
     def _format_docs_for_prompt(self, docs: List[Dict]) -> str:

@@ -1,14 +1,10 @@
 """
-LlamaIndex-powered RAG engine
-Wraps ChromaDB with LlamaIndex for better context optimization
+RAG engine with post-processing
+Uses ChromaDB directly (with Cohere embeddings) + post-processing filters
+Simplified to avoid LlamaIndex's OpenAI embedding requirement
 """
 import os
 from typing import List, Dict, Optional
-from llama_index.core import VectorStoreIndex
-from llama_index.vector_stores.chroma import ChromaVectorStore
-from llama_index.core.postprocessor import SimilarityPostprocessor, KeywordNodePostprocessor
-from llama_index.core.query_engine import RetrieverQueryEngine
-from llama_index.core.retrievers import VectorIndexRetriever
 from indexer.vector_store import VectorStore
 from dotenv import load_dotenv
 
@@ -18,23 +14,13 @@ load_dotenv()
 class RAGEngine:
     def __init__(self, collection_name: str = "docs"):
         """
-        Initialize RAG engine with LlamaIndex + ChromaDB
+        Initialize RAG engine with ChromaDB (uses existing Cohere embeddings)
         
         Args:
             collection_name: ChromaDB collection name
         """
-        # Get ChromaDB collection from existing VectorStore
-        vector_store = VectorStore(collection_name=collection_name)
-        chroma_collection = vector_store.collection
-        
-        # Wrap ChromaDB with LlamaIndex
-        chroma_store = ChromaVectorStore(chroma_collection=chroma_collection)
-        
-        # Create index from vector store
-        # Note: We use Claude directly, not through LlamaIndex's LLM abstraction
-        self.index = VectorStoreIndex.from_vector_store(
-            vector_store=chroma_store
-        )
+        # Use direct vector store (has Cohere embeddings)
+        self.vector_store = VectorStore(collection_name=collection_name)
     
     def query(
         self,
@@ -45,77 +31,77 @@ class RAGEngine:
         response_mode: str = "compact"
     ) -> List[Dict]:
         """
-        Query with optimized context retrieval
+        Query with optimized context retrieval and post-processing
         
         Args:
             query: Search query
             top_k: Number of results to retrieve
-            similarity_cutoff: Minimum similarity score
+            similarity_cutoff: Minimum similarity score (0.0-1.0)
             required_keywords: Keywords that must be present
-            response_mode: "compact" or "tree_summarize" for context optimization
+            response_mode: "compact" or "tree_summarize" (for future use)
         
         Returns:
             List of relevant doc chunks with metadata
         """
-        # Create retriever
-        retriever = VectorIndexRetriever(
-            index=self.index,
-            similarity_top_k=top_k
-        )
+        # Get more results than needed for filtering
+        # Get 3x more to account for filtering
+        search_results = self.vector_store.search(query, n_results=top_k * 3)
         
-        # Create postprocessors for filtering
-        postprocessors = [
-            SimilarityPostprocessor(similarity_cutoff=similarity_cutoff)
-        ]
-        
-        # Add keyword filter if specified
-        if required_keywords:
-            postprocessors.append(
-                KeywordNodePostprocessor(required_keywords=required_keywords)
-            )
-        
-        # Create query engine
-        query_engine = RetrieverQueryEngine(
-            retriever=retriever,
-            node_postprocessors=postprocessors,
-            response_mode=response_mode
-        )
-        
-        # Query and get nodes
-        nodes = query_engine.retrieve(query)
-        
-        # Format results
-        results = []
-        for node in nodes:
-            # Extract metadata from node
-            metadata = {}
-            if hasattr(node, 'metadata') and node.metadata:
-                metadata = node.metadata
-            elif hasattr(node, 'node') and hasattr(node.node, 'metadata'):
-                metadata = node.node.metadata
+        # Format and filter results
+        formatted = []
+        for result in search_results:
+            metadata = result.get('metadata', {})
+            distance = result.get('distance', 1.0)
+            score = 1.0 - distance  # Convert distance to similarity score
             
-            # Get text content
-            text = ""
-            if hasattr(node, 'text'):
-                text = node.text
-            elif hasattr(node, 'node') and hasattr(node.node, 'text'):
-                text = node.node.text
+            # Apply similarity cutoff (but be lenient - distance is already sorted)
+            # Only filter if score is really low (very high distance)
+            if score < similarity_cutoff and len(formatted) >= top_k:
+                # If we already have enough results, skip low-scoring ones
+                continue
             
-            # Get score
-            score = None
-            if hasattr(node, 'score'):
-                score = node.score
-            elif hasattr(node, 'similarity'):
-                score = node.similarity
+            # Apply keyword filter if specified (but don't be too strict)
+            if required_keywords:
+                content_lower = result.get('content', '').lower()
+                metadata_str = ' '.join([str(v) for v in metadata.values()]).lower()
+                combined_text = f"{content_lower} {metadata_str}"
+                
+                # Check if any required keyword is present
+                # Only filter if we have enough results already
+                if len(formatted) >= top_k:
+                    if not any(keyword.lower() in combined_text for keyword in required_keywords):
+                        continue
             
-            results.append({
-                'content': text,
+            # Format to match VectorStore.search() output format
+            formatted.append({
+                'doc_path': metadata.get('doc_path', ''),
+                'doc_url': metadata.get('doc_url', ''),
+                'doc_title': metadata.get('doc_title', ''),
+                'heading': metadata.get('heading', ''),
+                'content': result.get('content', ''),
+                'distance': distance,  # Keep distance for compatibility
                 'metadata': metadata,
-                'score': score,
-                'node_id': getattr(node, 'node_id', None) or (getattr(node.node, 'node_id', None) if hasattr(node, 'node') else None)
+                'score': score
             })
         
-        return results
+        # If filtering was too strict and we have no results, return top results anyway
+        if not formatted and search_results:
+            print(f"⚠️  RAG filtering too strict, returning top {top_k} results without filters")
+            for result in search_results[:top_k]:
+                metadata = result.get('metadata', {})
+                formatted.append({
+                    'doc_path': metadata.get('doc_path', ''),
+                    'doc_url': metadata.get('doc_url', ''),
+                    'doc_title': metadata.get('doc_title', ''),
+                    'heading': metadata.get('heading', ''),
+                    'content': result.get('content', ''),
+                    'distance': result.get('distance', 1.0),
+                    'metadata': metadata,
+                    'score': 1.0 - result.get('distance', 1.0)
+                })
+        
+        # Return top_k after filtering
+        return formatted[:top_k]
     
     def query_with_intent(
         self,
@@ -176,4 +162,3 @@ class RAGEngine:
             parts.extend(intent['keywords'][:2])
         
         return " ".join(parts)
-

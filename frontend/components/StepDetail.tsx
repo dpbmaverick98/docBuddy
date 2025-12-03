@@ -121,7 +121,7 @@ export default function StepDetail({ step, onClose }: StepDetailProps) {
                       );
                     },
                     pre: ({ node, ...props }) => (
-                      <div {...props} />
+                      <pre {...(props as any)} className="bg-gray-900 rounded-lg p-4 overflow-x-auto" />
                     ),
                     ul: ({ node, ...props }) => (
                       <ul className="list-disc list-inside text-gray-700 mb-2 space-y-1" {...props} />

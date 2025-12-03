@@ -1,10 +1,10 @@
 """
 Prompt chaining system
 Manages multi-step prompt workflows with context optimization
+Uses Claude Sonnet 4.5
 """
 from typing import Dict, List, Optional, Any
-from anthropic import Anthropic
-import os
+from services.llm_service import ClaudeService
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -19,14 +19,11 @@ class PromptChain:
             temperature: Default temperature for generation (0.0-1.0)
             max_tokens: Maximum tokens per response
         """
-        api_key = os.getenv('ANTHROPIC_API_KEY')
-        if not api_key:
-            raise ValueError("ANTHROPIC_API_KEY environment variable not set")
-        
-        self.claude = Anthropic(api_key=api_key)
-        self.model = "claude-sonnet-4-5"
         self.default_temperature = temperature
         self.default_max_tokens = max_tokens
+        
+        # Use Claude for prompt chaining
+        self.llm = ClaudeService()
     
     def execute_chain(
         self,
@@ -113,23 +110,12 @@ class PromptChain:
             Response text
         """
         try:
-            response = self.claude.messages.create(
-                model=self.model,
+            # Use Claude for prompt execution
+            response_text = self.llm.generate(
+                prompt=prompt,
                 max_tokens=max_tokens,
-                temperature=temperature,
-                messages=[{
-                    "role": "user",
-                    "content": prompt
-                }]
+                temperature=temperature
             )
-            
-            # Extract text
-            response_text = ""
-            for block in response.content:
-                if hasattr(block, 'text'):
-                    response_text += block.text
-                elif isinstance(block, str):
-                    response_text += block
             
             return response_text.strip()
             

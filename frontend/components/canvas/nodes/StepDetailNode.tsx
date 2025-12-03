@@ -21,7 +21,7 @@ const StepDetailNode = ({ data, id, selected }: NodeProps<StepDetailNodeData>) =
           ${selected ? 'border-blue-500 ring-2 ring-blue-500' : 'border-[#3a3a3a]'}
         `}
       >
-        <Handle type="target" position={Position.Left} className="w-3 h-3 !bg-blue-500" />
+        <Handle type="target" position={Position.Top} className="w-3 h-3 !bg-blue-500" />
         
         <div className="p-3 bg-[#252525] border-b border-[#3a3a3a] flex justify-between items-center flex-shrink-0 select-none">
           <span className="font-bold text-[#d4d4d4] ml-2 text-lg">Step {data.step.step_number} Details</span>
@@ -50,26 +50,10 @@ const StepDetailNode = ({ data, id, selected }: NodeProps<StepDetailNodeData>) =
           </div>
         </div>
         <div 
-          className="flex-1 overflow-y-auto p-6 nodrag cursor-auto bg-[#1e1e1e]"
-          onWheel={(e) => {
-            // Allow scrolling inside the node, prevent canvas zoom/pan
-            const element = e.currentTarget;
-            const isScrollable = element.scrollHeight > element.clientHeight;
-            const isAtTop = element.scrollTop <= 0;
-            const isAtBottom = element.scrollTop >= element.scrollHeight - element.clientHeight;
-            
-            // If content is scrollable and we're not at the boundaries, prevent canvas interaction
-            if (isScrollable && !(isAtTop && e.deltaY < 0) && !(isAtBottom && e.deltaY > 0)) {
-              e.stopPropagation();
-            }
-          }}
-          onMouseDown={(e) => {
-            e.stopPropagation();
-          }}
+          className="flex-1 overflow-y-auto p-6 nodrag nowheel cursor-auto bg-[#1e1e1e]"
           style={{ 
             scrollbarWidth: 'thin',
             scrollbarColor: '#3a3a3a #1e1e1e',
-            pointerEvents: 'auto'
           }}
         >
           <StepDetail step={data.step} onClose={() => data.onClose(id)} />

@@ -79,28 +79,10 @@ const ChatNode = ({ data, id, selected }: NodeProps<ChatNodeData>) => {
         </div>
 
         <div 
-          className="flex-1 overflow-y-auto p-4 bg-[#1e1e1e] nodrag cursor-text"
-          onWheel={(e) => {
-            e.stopPropagation();
-            e.nativeEvent.stopImmediatePropagation();
-            // Prevent React Flow zoom when scrolling inside the node
-            if (e.currentTarget.scrollHeight > e.currentTarget.clientHeight) {
-              const isScrolling = e.currentTarget.scrollTop > 0 && 
-                e.currentTarget.scrollTop < e.currentTarget.scrollHeight - e.currentTarget.clientHeight;
-              if (isScrolling || 
-                  (e.deltaY > 0 && e.currentTarget.scrollTop < e.currentTarget.scrollHeight - e.currentTarget.clientHeight) ||
-                  (e.deltaY < 0 && e.currentTarget.scrollTop > 0)) {
-                e.preventDefault();
-              }
-            }
-          }}
-          onMouseDown={(e) => {
-            e.stopPropagation();
-          }}
+          className="flex-1 overflow-y-auto p-4 bg-[#1e1e1e] nodrag nowheel cursor-text"
           style={{ 
             scrollbarWidth: 'thin',
             scrollbarColor: '#3a3a3a #1e1e1e',
-            pointerEvents: 'auto'
           }}
         >
           <StepChat step={data.step} summaries={summaries} />

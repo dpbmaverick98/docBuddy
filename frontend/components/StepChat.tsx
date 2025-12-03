@@ -5,6 +5,7 @@ import ReactMarkdown from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { JourneyStep } from "@/app/page";
+import { Copy, Check } from "lucide-react";
 
 interface DocSummary {
   doc_path: string;
@@ -24,11 +25,18 @@ export default function StepChat({ step, summaries }: StepChatProps) {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
+
+  const handleCopy = (text: string, index: number) => {
+    navigator.clipboard.writeText(text);
+    setCopiedIndex(index);
+    setTimeout(() => setCopiedIndex(null), 2000);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -73,18 +81,18 @@ export default function StepChat({ step, summaries }: StepChatProps) {
   };
 
   return (
-    <div className="space-y-4">
-      <h4 className="font-semibold text-gray-900">Ask questions about this step</h4>
+    <div className="space-y-4 h-full flex flex-col">
+      <h4 className="font-semibold text-[#d4d4d4] flex-shrink-0">Ask questions about this step</h4>
       
       <div 
-        className={`bg-gray-50 rounded-lg p-4 overflow-y-auto space-y-3 transition-all duration-300 ${
-          messages.length === 0 
-            ? "max-h-32" 
-            : "min-h-[800px] max-h-[1800px]"
-        }`}
+        className={`bg-[#252525] rounded-lg p-4 overflow-y-auto space-y-3 transition-all duration-300 flex-1 border border-[#3a3a3a]`}
+        style={{ 
+          scrollbarWidth: 'thin',
+          scrollbarColor: '#3a3a3a #252525'
+        }}
       >
         {messages.length === 0 ? (
-          <p className="text-sm text-gray-500 text-center py-4">
+          <p className="text-sm text-[#858585] text-center py-4">
             Ask a question about this step to get help with implementation
           </p>
         ) : (
@@ -94,29 +102,39 @@ export default function StepChat({ step, summaries }: StepChatProps) {
               className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
             >
               <div
-                className={`max-w-[80%] rounded-lg px-4 py-2 ${
+                className={`max-w-[90%] rounded-lg px-4 py-2 relative group ${
                   msg.role === "user"
                     ? "bg-blue-600 text-white"
-                    : "bg-white border border-gray-200 text-gray-900"
+                    : "bg-[#1e1e1e] border border-[#3a3a3a] text-[#d4d4d4] pr-10"
                 }`}
               >
+                {msg.role === "assistant" && (
+                  <button
+                    onClick={() => handleCopy(msg.content, index)}
+                    className="absolute top-2 right-2 p-1 text-[#858585] hover:text-[#d4d4d4] opacity-0 group-hover:opacity-100 transition-opacity"
+                    title="Copy response"
+                  >
+                    {copiedIndex === index ? <Check size={14} className="text-green-400" /> : <Copy size={14} />}
+                  </button>
+                )}
+
                 {msg.role === "user" ? (
                   <p className="text-sm text-white">{msg.content}</p>
                 ) : (
-                  <div className="prose prose-sm max-w-none">
+                  <div className="prose prose-sm max-w-none prose-invert">
                     <ReactMarkdown
                       components={{
                         h1: ({ node, ...props }) => (
-                          <h1 className="text-base font-semibold text-gray-900 mt-2 mb-1" {...props} />
+                          <h1 className="text-base font-semibold text-[#d4d4d4] mt-2 mb-1" {...props} />
                         ),
                         h2: ({ node, ...props }) => (
-                          <h2 className="text-sm font-semibold text-gray-900 mt-2 mb-1" {...props} />
+                          <h2 className="text-sm font-semibold text-[#d4d4d4] mt-2 mb-1" {...props} />
                         ),
                         h3: ({ node, ...props }) => (
-                          <h3 className="text-sm font-medium text-gray-900 mt-1 mb-1" {...props} />
+                          <h3 className="text-sm font-medium text-[#d4d4d4] mt-1 mb-1" {...props} />
                         ),
                         p: ({ node, ...props }) => (
-                          <p className="text-sm text-gray-700 mb-1.5 leading-relaxed" {...props} />
+                          <p className="text-sm text-[#d4d4d4] mb-1.5 leading-relaxed" {...props} />
                         ),
                         code: ({ node, inline, className, children, ...props }: any) => {
                           const match = /language-(\w+)/.exec(className || "");
@@ -133,7 +151,7 @@ export default function StepChat({ step, summaries }: StepChatProps) {
                             </SyntaxHighlighter>
                           ) : (
                             <code
-                              className="bg-gray-100 px-1 py-0.5 rounded text-xs font-mono text-gray-800"
+                              className="bg-[#252525] px-1 py-0.5 rounded text-xs font-mono text-[#d4d4d4] border border-[#3a3a3a]"
                               {...props}
                             >
                               {children}
@@ -145,19 +163,19 @@ export default function StepChat({ step, summaries }: StepChatProps) {
                           return <div {...restProps} />;
                         },
                         ul: ({ node, ...props }) => (
-                          <ul className="list-disc list-inside text-sm text-gray-700 mb-1.5 space-y-0.5" {...props} />
+                          <ul className="list-disc list-inside text-sm text-[#d4d4d4] mb-1.5 space-y-0.5" {...props} />
                         ),
                         ol: ({ node, ...props }) => (
-                          <ol className="list-decimal list-inside text-sm text-gray-700 mb-1.5 space-y-0.5" {...props} />
+                          <ol className="list-decimal list-inside text-sm text-[#d4d4d4] mb-1.5 space-y-0.5" {...props} />
                         ),
                         li: ({ node, ...props }) => (
-                          <li className="text-sm text-gray-700" {...props} />
+                          <li className="text-sm text-[#d4d4d4]" {...props} />
                         ),
                         strong: ({ node, ...props }) => (
-                          <strong className="font-semibold text-gray-900" {...props} />
+                          <strong className="font-semibold text-[#ffffff]" {...props} />
                         ),
                         em: ({ node, ...props }) => (
-                          <em className="italic text-gray-700" {...props} />
+                          <em className="italic text-[#d4d4d4]" {...props} />
                         ),
                       }}
                     >
@@ -171,10 +189,10 @@ export default function StepChat({ step, summaries }: StepChatProps) {
         )}
         {loading && (
           <div className="flex justify-start">
-            <div className="bg-white border border-gray-200 rounded-lg px-4 py-2">
+            <div className="bg-[#1e1e1e] border border-[#3a3a3a] rounded-lg px-4 py-2">
               <div className="flex items-center gap-2">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600"></div>
-                <span className="text-sm text-gray-500">Thinking...</span>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[#858585]"></div>
+                <span className="text-sm text-[#858585]">Thinking...</span>
               </div>
             </div>
           </div>
@@ -182,19 +200,19 @@ export default function StepChat({ step, summaries }: StepChatProps) {
         <div ref={messagesEndRef} />
       </div>
 
-      <form onSubmit={handleSubmit} className="flex gap-2">
+      <form onSubmit={handleSubmit} className="flex gap-2 flex-shrink-0">
         <input
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="e.g., How do I configure this? What code do I need?"
-          className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="flex-1 px-4 py-2 bg-[#252525] border border-[#3a3a3a] rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-[#d4d4d4] placeholder-[#5a5a5a]"
           disabled={loading}
         />
         <button
           type="submit"
           disabled={!input.trim() || loading}
-          className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+          className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:bg-[#2d2d2d] disabled:text-[#5a5a5a] disabled:cursor-not-allowed transition-colors"
         >
           Ask
         </button>
@@ -202,4 +220,3 @@ export default function StepChat({ step, summaries }: StepChatProps) {
     </div>
   );
 }
-

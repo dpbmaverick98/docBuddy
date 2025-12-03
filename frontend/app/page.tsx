@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import JourneyChat from "@/components/JourneyChat";
-import JourneyTimeline from "@/components/JourneyTimeline";
+import JourneyCanvas from "@/components/canvas/JourneyCanvas";
+import { ReactFlowProvider } from "reactflow";
+import { Rabbit, Map, History } from 'lucide-react';
 
 export interface JourneyStep {
   step_number: number;
@@ -98,51 +100,84 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen bg-gray-50">
-      <div className="container mx-auto px-4 py-8 max-w-6xl">
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">
-            Docs Journey Builder
+    <main className="flex h-screen w-full bg-[#1e1e1e] overflow-hidden">
+      {/* Sidebar */}
+      <div className="w-[400px] border-r border-[#3a3a3a] bg-[#252525] flex flex-col z-10 shadow-xl h-full flex-shrink-0">
+        <div className="p-6 border-b border-[#3a3a3a]">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white">
+              <Rabbit size={20} />
+            </div>
+            <h1 className="text-xl font-bold text-[#d4d4d4]">
+              Docs Buddy
           </h1>
-          <p className="text-gray-600">
-            Describe what you want to accomplish, and we'll create a step-by-step journey through the documentation.
+          </div>
+          <p className="text-sm text-[#858585]">
+            Plan your integration path with user journeys in mind.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Chat Input */}
-          <div className="lg:col-span-1">
+        <div className="flex-1 overflow-y-auto p-6">
+          <div className="mb-8">
+            <label className="block text-sm font-medium text-[#d4d4d4] mb-2">
+              What do you want to build?
+            </label>
             <JourneyChat
               onGenerate={handleGenerateJourney}
               loading={loading}
             />
             {error && (
-              <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-                <p className="text-red-800 text-sm">{error}</p>
+              <div className="mt-4 p-4 bg-red-900/20 border border-red-500/30 rounded-lg">
+                <p className="text-red-400 text-sm">{error}</p>
               </div>
             )}
           </div>
 
-          {/* Timeline */}
-          <div className="lg:col-span-2">
-            {journey ? (
-              <JourneyTimeline journey={journey} />
-            ) : (
-              <div className="bg-white rounded-lg shadow p-8 text-center text-gray-500">
-                {loading ? (
-                  <div className="flex flex-col items-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
-                    <p>Generating your journey...</p>
-                  </div>
-                ) : (
-                  <p>Enter a goal above to generate a journey</p>
-                )}
+          {/* Recent Journeys or Tips could go here */}
+          {!journey && !loading && (
+            <div className="bg-blue-900/20 rounded-lg p-4 border border-blue-500/30">
+              <div className="flex items-center gap-2 mb-2 text-blue-400 font-semibold">
+                <Map size={16} />
+                <span>Example Queries</span>
+              </div>
+              <ul className="space-y-2 text-sm text-blue-300">
+                <li className="cursor-pointer hover:underline" onClick={() => handleGenerateJourney("How do I set up authentication?")}>
+                  • "How do I set up authentication?"
+                </li>
+                <li className="cursor-pointer hover:underline" onClick={() => handleGenerateJourney("Create a user dashboard with charts")}>
+                  • "Create a user dashboard with charts"
+                </li>
+                <li className="cursor-pointer hover:underline" onClick={() => handleGenerateJourney("Deploy to production using Docker")}>
+                  • "Deploy to production using Docker"
+                </li>
+              </ul>
               </div>
             )}
+        </div>
+
+        <div className="p-4 border-t border-[#3a3a3a] bg-[#1e1e1e]">
+          <div className="text-xs text-[#5a5a5a] text-center">
+            Built by dpbmaverick98 with ❤️
           </div>
         </div>
+      </div>
+      
+      {/* Main Canvas */}
+      <div className="flex-1 relative h-full bg-[#1e1e1e]">
+        {loading && (
+          <div className="absolute inset-0 z-50 bg-[#1e1e1e]/80 backdrop-blur-sm flex flex-col items-center justify-center">
+            <div className="bg-[#252525] p-8 rounded-2xl shadow-2xl flex flex-col items-center animate-in fade-in zoom-in duration-300 border border-[#3a3a3a]">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
+              <p className="text-lg font-medium text-[#d4d4d4]">Generating your journey...</p>
+              <p className="text-sm text-[#858585] mt-2">Analyzing documentation and creating steps</p>
+            </div>
+          </div>
+        )}
+        
+        <ReactFlowProvider>
+          <JourneyCanvas journey={journey} />
+        </ReactFlowProvider>
       </div>
     </main>
   );
 }
-

@@ -3,18 +3,61 @@
 @tailwind utilities;
 
 :root {
-  --foreground-rgb: 0, 0, 0;
-  --background-start-rgb: 255, 255, 255;
-  --background-end-rgb: 255, 255, 255;
+  --foreground-rgb: 212, 212, 212;
+  --background-start-rgb: 30, 30, 30;
+  --background-end-rgb: 30, 30, 30;
 }
 
 body {
   color: rgb(var(--foreground-rgb));
-  background: linear-gradient(
-      to bottom,
-      transparent,
-      rgb(var(--background-end-rgb))
-    )
-    rgb(var(--background-start-rgb));
+  background: rgb(var(--background-start-rgb));
 }
 
+/* Custom scrollbar styles for dark mode */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1e1e1e;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #3a3a3a;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #4a4a4a;
+}
+
+/* React Flow custom styles */
+.react-flow__controls {
+  background: #252525 !important;
+  border: 1px solid #3a3a3a !important;
+}
+
+.react-flow__controls-button {
+  background: #252525 !important;
+  border-bottom: 1px solid #3a3a3a !important;
+  color: #d4d4d4 !important;
+}
+
+.react-flow__controls-button:hover {
+  background: #2d2d2d !important;
+}
+
+.react-flow__attribution {
+  background: transparent !important;
+  color: #5a5a5a !important;
+}
+
+.react-flow__attribution a {
+  color: #858585 !important;
+}
+
+/* Enable panning and zooming */
+.react-flow { 
+  touch-action: none; 
+}

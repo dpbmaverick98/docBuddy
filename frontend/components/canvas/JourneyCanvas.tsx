@@ -14,6 +14,7 @@ import ReactFlow, {
   useReactFlow,
   BackgroundVariant,
   NodeMouseHandler,
+  getRectOfNodes,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import dagre from 'dagre';
@@ -38,11 +39,12 @@ const dagreGraph = new dagre.graphlib.Graph();
 dagreGraph.setDefaultEdgeLabel(() => ({}));
 
 const getLayoutedElements = (nodes: Node[], edges: Edge[]) => {
-  dagreGraph.setGraph({ rankdir: 'LR' }); // Left to Right layout
+  dagreGraph.setGraph({ rankdir: 'LR' });
 
   nodes.forEach((node) => {
-    const width = node.type === 'stepDetailNode' ? 1000 : node.type === 'chatNode' ? 500 : 350;
-    const height = node.type === 'stepDetailNode' ? 800 : node.type === 'chatNode' ? 600 : 200;
+    // Use actual node dimensions for layout
+    const width = node.type === 'stepDetailNode' ? 800 : node.type === 'chatNode' ? 500 : 350;
+    const height = node.type === 'stepDetailNode' ? 600 : node.type === 'chatNode' ? 600 : 200;
     dagreGraph.setNode(node.id, { width, height });
   });
 
@@ -54,11 +56,9 @@ const getLayoutedElements = (nodes: Node[], edges: Edge[]) => {
 
   nodes.forEach((node) => {
     const nodeWithPosition = dagreGraph.node(node.id);
-    const width = node.type === 'stepDetailNode' ? 1000 : node.type === 'chatNode' ? 500 : 350;
-    const height = node.type === 'stepDetailNode' ? 800 : node.type === 'chatNode' ? 600 : 200;
     node.position = {
-      x: nodeWithPosition.x - width / 2,
-      y: nodeWithPosition.y - height / 2,
+      x: nodeWithPosition.x - (node.width || 350) / 2,
+      y: nodeWithPosition.y - (node.height || 200) / 2,
     };
   });
 
@@ -68,83 +68,53 @@ const getLayoutedElements = (nodes: Node[], edges: Edge[]) => {
 export default function JourneyCanvas({ journey }: JourneyCanvasProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
-  const { getNodes, getNode, setCenter, getViewport } = useReactFlow();
+  const { fitView, getNode, getNodes } = useReactFlow();
   const zIndexCounter = useRef(1000);
-  const reactFlowWrapper = useRef<HTMLDivElement>(null);
   
-  // Use refs to store callbacks to avoid circular dependencies
   const onChatRef = useRef<(step: JourneyStep, sourceNodeId: string) => void>();
   const onExpandRef = useRef<(step: JourneyStep, sourceNodeId: string) => void>();
 
-  // Helper function to pan to a node
-  const panToNode = useCallback((node: Node, padding: number = 200) => {
-    if (!reactFlowWrapper.current) return;
-    
-    const viewport = getViewport();
-    const zoom = viewport.zoom;
-    
-    // Get viewport dimensions (in screen pixels)
-    const viewportWidth = reactFlowWrapper.current.clientWidth;
-    const viewportHeight = reactFlowWrapper.current.clientHeight;
-    
-    // Convert to flow coordinates
-    const flowViewportWidth = viewportWidth / zoom;
-    const flowViewportHeight = viewportHeight / zoom;
-    
-    // Get node dimensions
-    const nodeWidth = node.width || (node.type === 'stepDetailNode' ? 800 : node.type === 'chatNode' ? 500 : 350);
-    const nodeHeight = node.height || (node.type === 'stepDetailNode' ? 600 : node.type === 'chatNode' ? 600 : 200);
-    
-    // Node bounds
-    const nodeLeft = node.position.x;
-    const nodeRight = node.position.x + nodeWidth;
-    const nodeTop = node.position.y;
-    const nodeBottom = node.position.y + nodeHeight;
-    const nodeCenterX = node.position.x + nodeWidth / 2;
-    const nodeCenterY = node.position.y + nodeHeight / 2;
-    
-    // Calculate the area we want visible (node + padding)
-    const visibleLeft = nodeLeft - padding;
-    const visibleRight = nodeRight + padding;
-    const visibleTop = nodeTop - padding;
-    const visibleBottom = nodeBottom + padding;
-    const visibleWidth = visibleRight - visibleLeft;
-    const visibleHeight = visibleBottom - visibleTop;
-    
-    // Calculate target center to show the node with padding
-    let targetCenterX = nodeCenterX;
-    let targetCenterY = nodeCenterY;
-    
-    // If the visible area is smaller than viewport, center it
-    if (visibleWidth < flowViewportWidth) {
-      targetCenterX = (visibleLeft + visibleRight) / 2;
-    }
-    if (visibleHeight < flowViewportHeight) {
-      targetCenterY = (visibleTop + visibleBottom) / 2;
-    }
-    
-    // If the visible area is larger than viewport, ensure node is centered
-    // (which is already the case)
-    
-    setCenter(targetCenterX, targetCenterY, { duration: 800 });
-  }, [setCenter, getViewport]);
+  // CRITICAL: Wait for node to be measured before fitting
+  const fitToNode = useCallback((nodeId: string, padding: number = 0.2) => {
+    // Wait for React Flow to measure the node
+    const checkAndFit = () => {
+      const node = getNode(nodeId);
+      
+      // Debug: Check if node exists and has dimensions
+      console.log('Fitting to node:', nodeId, {
+        exists: !!node,
+        width: node?.width,
+        height: node?.height,
+        position: node?.position,
+      });
 
-  // Helper function to find the original step node ID from any node
+      if (node && node.width && node.height) {
+        console.log('✅ Node measured, fitting view');
+        fitView({
+          nodes: [node],
+          padding,
+          duration: 800,
+          minZoom: 0.5,
+          maxZoom: 1.5,
+        });
+      } else {
+        console.log('⏳ Node not measured yet, retrying...');
+        setTimeout(checkAndFit, 50); // Retry after 50ms
+      }
+    };
+
+    // Start checking immediately, but delay a bit to let React render
+    setTimeout(checkAndFit, 100);
+  }, [fitView, getNode]);
+
   const findStepNodeId = useCallback((nodeId: string, currentNodes: Node[], currentEdges: Edge[]): string | null => {
-    // If it's already a step node, return it
     const node = currentNodes.find(n => n.id === nodeId);
-    if (node?.type === 'stepNode') {
-      return nodeId;
-    }
+    if (node?.type === 'stepNode') return nodeId;
     
-    // Otherwise, find the step node it's connected to
     const connectedEdge = currentEdges.find(e => e.target === nodeId);
     if (connectedEdge) {
       const sourceNode = currentNodes.find(n => n.id === connectedEdge.source);
-      if (sourceNode?.type === 'stepNode') {
-        return connectedEdge.source;
-      }
-      // Recursively find the step node
+      if (sourceNode?.type === 'stepNode') return connectedEdge.source;
       return findStepNodeId(connectedEdge.source, currentNodes, currentEdges);
     }
     
@@ -157,7 +127,7 @@ export default function JourneyCanvas({ journey }: JourneyCanvasProps) {
     
     const onClose = (id: string) => {
       setNodes((nds) => nds.filter((n) => n.id !== id));
-      setEdges((eds) => eds.filter((e) => e.target !== id || e.source === id));
+      setEdges((eds) => eds.filter((e) => !(e.target === id || e.source === id)));
     };
 
     // Find the original step node to position relative to it
@@ -186,12 +156,11 @@ export default function JourneyCanvas({ journey }: JourneyCanvasProps) {
       },
     };
 
-      // Position chat node: if detail exists, place it below detail; otherwise below step
-      if (detailNode && stepNode) {
-        chatNode.position = {
-          x: detailNode.position.x,
-          y: detailNode.position.y + (detailNode.height || 600) + 50,
-        };
+    if (detailNode && stepNode) {
+      chatNode.position = {
+        x: detailNode.position.x,
+        y: detailNode.position.y + (detailNode.height || 800) + 50,
+      };
     } else if (stepNode) {
       chatNode.position = {
         x: stepNode.position.x,
@@ -199,7 +168,6 @@ export default function JourneyCanvas({ journey }: JourneyCanvasProps) {
       };
     }
 
-    // Connect to the original step node, not the detail node
     const chatEdge: Edge = {
       id: `e-${stepNodeId}-${chatNodeId}`,
       source: stepNodeId,
@@ -212,14 +180,9 @@ export default function JourneyCanvas({ journey }: JourneyCanvasProps) {
     setNodes((nds) => nds.concat(chatNode));
     setEdges((eds) => eds.concat(chatEdge));
     
-    // Pan to the new chat node after React Flow has measured it
-    setTimeout(() => {
-      const actualNode = getNode(chatNodeId);
-      if (actualNode) {
-        panToNode(actualNode, 200);
-      }
-    }, 300); // Give React Flow time to measure the node
-  }, [getNodes, setNodes, setEdges, findStepNodeId, edges, panToNode]);
+    // Use our new fit function
+    fitToNode(chatNodeId, 0.2);
+  }, [getNodes, setNodes, setEdges, findStepNodeId, edges, fitToNode]);
 
   // Helper to spawn a step detail node
   const onExpand = useCallback((step: JourneyStep, sourceNodeId: string) => {
@@ -227,7 +190,7 @@ export default function JourneyCanvas({ journey }: JourneyCanvasProps) {
     
     const onClose = (id: string) => {
       setNodes((nds) => nds.filter((n) => n.id !== id));
-      setEdges((eds) => eds.filter((e) => e.target !== id || e.source === id));
+      setEdges((eds) => eds.filter((e) => !(e.target === id || e.source === id)));
     };
 
     zIndexCounter.current += 1;
@@ -236,8 +199,8 @@ export default function JourneyCanvas({ journey }: JourneyCanvasProps) {
       type: 'stepDetailNode',
       position: { x: 0, y: 0 },
       zIndex: zIndexCounter.current,
-      width: 800,
-      height: 600,
+      width: 800, // Reduced from 1000
+      height: 600, // Reduced from 800
       data: { 
         step,
         onClose,
@@ -246,7 +209,6 @@ export default function JourneyCanvas({ journey }: JourneyCanvasProps) {
       },
     };
 
-    // Position it to the right of the source step node
     const currentNodes = getNodes();
     const sourceNode = currentNodes.find(n => n.id === sourceNodeId);
     if (sourceNode) {
@@ -256,7 +218,6 @@ export default function JourneyCanvas({ journey }: JourneyCanvasProps) {
       };
     }
 
-    // Create edge connecting step node to detail node
     const detailEdge: Edge = {
       id: `e-${sourceNodeId}-${detailNodeId}`,
       source: sourceNodeId,
@@ -270,14 +231,9 @@ export default function JourneyCanvas({ journey }: JourneyCanvasProps) {
     setNodes((nds) => nds.concat(detailNode));
     setEdges((eds) => eds.concat(detailEdge));
     
-    // Pan to the new detail node after React Flow has measured it
-    setTimeout(() => {
-      const actualNode = getNode(detailNodeId);
-      if (actualNode) {
-        panToNode(actualNode, 200);
-      }
-    }, 300); // Give React Flow time to measure the node
-  }, [getNodes, setNodes, setEdges, panToNode]);
+    // Use our new fit function
+    fitToNode(detailNodeId, 0.15);
+  }, [getNodes, setNodes, setEdges, fitToNode]);
 
   // Update refs when callbacks change
   useEffect(() => {
@@ -285,10 +241,15 @@ export default function JourneyCanvas({ journey }: JourneyCanvasProps) {
     onExpandRef.current = onExpand;
   }, [onChat, onExpand]);
 
-  // Handle node click to pan to it with proper fitting
-  const onNodeClick: NodeMouseHandler = useCallback((event, node) => {
-    panToNode(node, 100);
-  }, [panToNode]);
+  // Simple node click handler
+  const onNodeClick = useCallback<NodeMouseHandler>((event, node) => {
+    // Don't pan when clicking interactive elements inside node
+    const target = event.target as HTMLElement;
+    if (target.closest('button') || target.closest('input') || target.closest('textarea')) {
+      return;
+    }
+    fitToNode(node.id, 0.15);
+  }, [fitToNode]);
 
   // Initial Setup - only depends on journey, not callbacks
   useEffect(() => {
@@ -336,7 +297,7 @@ export default function JourneyCanvas({ journey }: JourneyCanvasProps) {
   );
 
   return (
-    <div ref={reactFlowWrapper} className="w-full h-full bg-[#1e1e1e]">
+    <div className="w-full h-full bg-[#1e1e1e]">
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -346,14 +307,17 @@ export default function JourneyCanvas({ journey }: JourneyCanvasProps) {
         onNodeClick={onNodeClick}
         nodeTypes={nodeTypes}
         fitView
-        fitViewOptions={{ padding: 0.2, minZoom: 0.5, maxZoom: 1.5 }}
         attributionPosition="bottom-right"
         minZoom={0.1}
         maxZoom={4}
-        proOptions={{ hideAttribution: true }}
+        // CRITICAL: Enable these
         panOnScroll={true}
         zoomOnScroll={true}
         panOnDrag={true}
+        zoomOnPinch={true}
+        // Prevent scroll conflicts
+        preventScrolling={false}
+        proOptions={{ hideAttribution: true }}
       >
         <Background color="#2d2d2d" gap={20} size={1} variant={BackgroundVariant.Dots} />
         <Controls className="!bg-[#252525] !border-[#3a3a3a]" />

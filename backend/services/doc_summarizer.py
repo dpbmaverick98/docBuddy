@@ -16,18 +16,18 @@ load_dotenv()
 class DocSummarizer:
     # Class-level cache to persist across instances
     _summary_cache: Dict[str, Dict] = {}
-
+    
     def __init__(self, collection_name: str = "docs", temperature: float = 0.3):
         """
         Initialize doc summarizer
-
+        
         Args:
             collection_name: ChromaDB collection name
             temperature: Temperature for summarization (lower = more focused, default: 0.3)
         """
         self.vector_store = VectorStore(collection_name=collection_name)
         self.temperature = temperature
-
+        
         # Use Claude for summarization
         self.llm = ClaudeService()
     
@@ -116,7 +116,7 @@ class DocSummarizer:
                         r for r in all_results
                         if r['metadata'].get('doc_path') == doc_path
                     ]
-                
+
                 if results:
                     # Get all chunks for this doc and rank them by relevance to step
                     all_chunks = []
@@ -219,14 +219,14 @@ class DocSummarizer:
             f"## {chunk.get('heading', 'Content')}\n{chunk['content']}"
             for chunk in doc_chunks  # Use all selected relevant chunks
         ])
-        
+
         # Calculate max_tokens based on max_length (roughly 4 chars per token, add buffer)
         # Ensure minimum of 500 tokens and maximum reasonable limit
         calculated_max_tokens = max(500, min(int(max_length / 3), 4000))
-        
+
         # Increase input content limit for longer summaries
         input_limit = min(4000, max_length * 2) if max_length > 1000 else 2000
-        
+
         # Build step context for the prompt
         step_context = ""
         if step_title or step_description:

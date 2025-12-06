@@ -22,15 +22,17 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-async def index_docs_from_llms_txt(base_url: str, collection_name: str = "docs"):
+async def index_docs_from_llms_txt(base_url: str, project_name: str = None):
     """
     Complete pipeline: llms.txt → fetch docs → chunk → embed → store
-    
+
     Args:
         base_url: Base URL of docs site (e.g., https://docs.privy.io)
-        collection_name: ChromaDB collection name
+        project_name: Project identifier for collection naming
     """
-    print(f"🚀 Starting indexing for {base_url}")
+    # Generate collection name from project
+    collection_name = project_name.lower().replace(' ', '_') if project_name else "docs"
+    print(f"🚀 Starting indexing for {base_url} (project: {project_name})")
     print("=" * 60)
     
     # Step 1: Parse llms.txt
@@ -140,25 +142,26 @@ if __name__ == "__main__":
         help="Base URL of docs site (e.g., https://docs.privy.io)"
     )
     parser.add_argument(
-        "--collection",
+        "--project",
         type=str,
-        default="docs",
-        help="ChromaDB collection name (default: docs)"
+        required=True,
+        help="Project name (e.g., 'privy', 'stripe', 'aws')"
     )
     parser.add_argument(
         "--clear",
         action="store_true",
         help="Clear existing collection before indexing"
     )
-    
+
     args = parser.parse_args()
-    
+
     # If --clear flag is set, clear collection first
     if args.clear:
         from indexer.vector_store import VectorStore
-        store = VectorStore(collection_name=args.collection)
+        collection_name = args.project.lower().replace(' ', '_')
+        store = VectorStore(collection_name=collection_name)
         store.clear_collection()
         print("✅ Collection cleared\n")
-    
-    asyncio.run(index_docs_from_llms_txt(args.base_url, args.collection))
+
+    asyncio.run(index_docs_from_llms_txt(args.base_url, args.project))
 

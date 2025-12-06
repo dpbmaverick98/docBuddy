@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from api.journey import router as journey_router
 from api.doc_summary import router as doc_summary_router
 from api.step_qa import router as step_qa_router
+from api.projects import router as projects_router
 
 app = FastAPI(
     title="Docs Journey Builder API",
@@ -26,6 +27,7 @@ app.add_middleware(
 app.include_router(journey_router)
 app.include_router(doc_summary_router)
 app.include_router(step_qa_router)
+app.include_router(projects_router)
 
 
 @app.get("/")

@@ -12,6 +12,7 @@ router = APIRouter(prefix="/api/journey", tags=["journey"])
 class JourneyRequest(BaseModel):
     query: str
     max_steps: Optional[int] = 10
+    project: str = "privy"  # Default to your current project
 
 
 class JourneyResponse(BaseModel):
@@ -25,17 +26,22 @@ class JourneyResponse(BaseModel):
 async def generate_journey(request: JourneyRequest):
     """
     Generate a step-by-step journey from user query
-    
+
     Example:
         POST /api/journey/generate
         {
             "query": "I want to set up authentication",
-            "max_steps": 5
+            "max_steps": 5,
+            "project": "privy"
         }
     """
     try:
+        # Convert project name to collection name
+        collection_name = request.project.lower().replace(' ', '_')
+
         # Use optimized defaults: RAG enabled, temperature 0.7 for balanced creativity
         generator = JourneyGenerator(
+            collection_name=collection_name,
             use_rag=True,
             temperature=0.7
         )

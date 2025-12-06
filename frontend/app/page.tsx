@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import JourneyChat from "@/components/JourneyChat";
 import JourneyCanvas from "@/components/canvas/JourneyCanvas";
 import { ReactFlowProvider } from "reactflow";
@@ -28,6 +28,26 @@ export default function Home() {
   const [journey, setJourney] = useState<Journey | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedProject, setSelectedProject] = useState<string>("privy");
+  const [availableProjects, setAvailableProjects] = useState<string[]>(["privy", "stripe", "aws"]);
+
+  // Fetch available projects from backend
+  useEffect(() => {
+    const fetchProjects = async () => {
+      try {
+        const response = await fetch("/api/projects/");
+        if (response.ok) {
+          const projects = await response.json();
+          const projectNames = projects.map((p: any) => p.name);
+          setAvailableProjects(projectNames);
+        }
+      } catch (error) {
+        console.warn("Could not fetch projects from backend, using defaults:", error);
+      }
+    };
+
+    fetchProjects();
+  }, []);
 
   const handleGenerateJourney = async (query: string) => {
     setLoading(true);
@@ -44,7 +64,7 @@ export default function Home() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ query, max_steps: 10 }),
+        body: JSON.stringify({ query, max_steps: 10, project: selectedProject }),
         signal: controller.signal,
       });
 
@@ -125,6 +145,9 @@ export default function Home() {
             <JourneyChat
               onGenerate={handleGenerateJourney}
               loading={loading}
+              selectedProject={selectedProject}
+              onProjectChange={setSelectedProject}
+              availableProjects={availableProjects}
             />
             {error && (
               <div className="mt-4 p-4 bg-red-900/20 border border-red-500/30 rounded-lg">

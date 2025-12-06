@@ -5,9 +5,12 @@ import { useState } from "react";
 interface JourneyChatProps {
   onGenerate: (query: string) => void;
   loading: boolean;
+  selectedProject: string;
+  onProjectChange: (project: string) => void;
+  availableProjects: string[];
 }
 
-export default function JourneyChat({ onGenerate, loading }: JourneyChatProps) {
+export default function JourneyChat({ onGenerate, loading, selectedProject, onProjectChange, availableProjects }: JourneyChatProps) {
   const [query, setQuery] = useState("");
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -23,12 +26,33 @@ export default function JourneyChat({ onGenerate, loading }: JourneyChatProps) {
       <h2 className="text-xl font-semibold mb-4 text-[#d4d4d4]">
         What do you want to accomplish?
       </h2>
-      
+
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-[#d4d4d4] mb-2">
+          Documentation Source
+        </label>
+        <select
+          value={selectedProject}
+          onChange={(e) => onProjectChange(e.target.value)}
+          className="w-full px-3 py-2 bg-[#252525] border border-[#3a3a3a] rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-[#d4d4d4]"
+          disabled={loading}
+        >
+          {availableProjects.map((project) => (
+            <option key={project} value={project} className="bg-[#252525] text-[#d4d4d4]">
+              {project.charAt(0).toUpperCase() + project.slice(1)} Docs
+            </option>
+          ))}
+        </select>
+        <p className="text-xs text-[#858585] mt-1">
+          Choose which project's documentation to search
+        </p>
+      </div>
+
       <form onSubmit={handleSubmit} className="space-y-4">
         <textarea
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="e.g., I want to set up authentication with Privy"
+          placeholder={`e.g., I want to set up authentication with ${selectedProject.charAt(0).toUpperCase() + selectedProject.slice(1)}`}
           className="w-full px-4 py-3 bg-[#252525] border border-[#3a3a3a] rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none text-[#d4d4d4] placeholder-[#5a5a5a]"
           rows={4}
           disabled={loading}
@@ -50,10 +74,10 @@ export default function JourneyChat({ onGenerate, loading }: JourneyChatProps) {
             • "Set up authentication"
           </li>
           <li className="text-[#5a5a5a]">
-            • "Create a wallet integration"
+            • "Create a user dashboard"
           </li>
           <li className="text-[#5a5a5a]">
-            • "Configure gas sponsorship"
+            • "Integrate payment processing"
           </li>
         </ul>
       </div>

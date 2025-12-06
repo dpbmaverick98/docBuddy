@@ -27,15 +27,21 @@ class IntentExtractor:
 
 User Query: "{user_query}"
 
+For Privy documentation queries, pay special attention to:
+- Dashboard/admin features
+- Authentication flows  
+- Wallet connections
+- User management
+- API integrations
+
 Extract:
 1. Main goal (what they want to accomplish)
-2. Complexity level (beginner/intermediate/advanced)
-3. Platform/framework (if mentioned: react, nextjs, python, etc.)
+2. Complexity level (beginner/intermediate/advanced) 
+3. Platform/framework (privy, react, nextjs, etc.)
 4. Key concepts/technologies mentioned
 5. Specific requirements or constraints
 
-Return ONLY valid JSON:
-{{
+Return ONLY valid JSON: {{
   "goal": "main objective",
   "complexity": "beginner|intermediate|advanced",
   "platform": "react|nextjs|python|etc or null",

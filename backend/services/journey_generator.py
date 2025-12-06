@@ -71,71 +71,50 @@ class JourneyGenerator:
     ) -> Dict:
         """
         Generate a step-by-step journey from user query
-        Now with intent extraction and optimized RAG
-        
+        Simplified: Search → LLM generates steps → Validate
+
         Args:
             user_query: User's goal (e.g., "I want to set up authentication")
             max_steps: Maximum number of steps to generate
-            temperature: Override default temperature
-        
+
         Returns:
-            Dict with journey_id, goal, steps, etc.
+            Dict with goal, steps, etc.
         """
         # Step 1: Extract intent
-        print(f"🧠 Extracting intent from: {user_query}")
+        print(f"🧠 Extracting intent...")
         intent = self.intent_extractor.extract_intent(user_query)
-        print(f"✅ Intent: {intent.get('goal')} ({intent.get('complexity')})")
-        
-        # Step 2: Search for relevant documentation (with intent)
-        print(f"🔍 Searching docs with optimized RAG...")
+        print(f"✅ Intent: {intent.get('goal')}")
+
+        # Step 2: Search for relevant docs
+        print(f"🔍 Searching docs...")
         if self.use_rag:
-            relevant_docs = self._search_with_rag(user_query, intent, top_k=20)
+            docs = self._search_with_rag(user_query, intent, top_k=25)  # More docs for better context
         else:
-            relevant_docs = self._search_relevant_docs(user_query, top_k=20)
-        
-        if not relevant_docs:
-            return {
-                'error': 'No relevant documentation found',
-                'query': user_query
-            }
-        
-        print(f"✅ Found {len(relevant_docs)} relevant doc sections")
-        
-        # Step 3: Optimize context
-        print(f"📊 Optimizing context...")
-        optimized_docs = self.prompt_chain.optimize_context(relevant_docs, max_tokens=3000)
-        print(f"✅ Selected {len(optimized_docs)} docs for context")
-        
-        # Step 4: Generate journey steps using Claude (with optimized context)
-        print(f"🧠 Generating journey steps...")
-        steps = self._generate_steps_with_claude(
-            user_query=user_query,
-            intent=intent,
-            relevant_docs=optimized_docs,
-            max_steps=max_steps,
-            temperature=self.temperature
-        )
-        
+            docs = self._search_relevant_docs(user_query, top_k=25)
+
+        if not docs:
+            return {'error': 'No relevant documentation found'}
+
+        print(f"✅ Found {len(docs)} docs")
+
+        # Step 3: Generate journey with LLM
+        print(f"🧠 Generating steps...")
+        steps = self._generate_steps_with_claude(user_query, intent, docs, max_steps)
+
         if not steps:
-            return {
-                'error': 'Failed to generate journey steps',
-                'query': user_query
-            }
-        
-        # Step 5: Validate steps (verify docs exist)
+            return {'error': 'Failed to generate steps'}
+
+        # Step 4: Validate and clean up
         print(f"✅ Validating {len(steps)} steps...")
-        validated_steps = self._validate_steps(steps, optimized_docs)
-        
-        # Step 6: Format response
-        journey = {
+        validated_steps = self._validate_steps(steps, docs)
+
+        # Step 5: Response
+        return {
             'goal': user_query,
-            'intent': intent,
             'steps': validated_steps,
             'total_steps': len(validated_steps),
             'estimated_time': self._estimate_total_time(validated_steps)
         }
-        
-        return journey
     
     def _search_with_rag(
         self,
@@ -218,51 +197,35 @@ class JourneyGenerator:
         self,
         user_query: str,
         intent: Dict,
-        relevant_docs: List[Dict],
-        max_steps: int,
-        temperature: float = 0.7
+        docs: List[Dict],
+        max_steps: int
     ) -> List[Dict]:
         """
-        Use Claude to generate ordered journey steps
-        
-        Returns:
-            List of step dicts
+        Generate journey steps with better LLM prompting
         """
-        # Format docs for prompt
-        docs_text = self._format_docs_for_prompt(relevant_docs)
-        
-        # Build enhanced prompt with intent
-        intent_context = ""
-        if intent.get('platform'):
-            intent_context += f"\nPlatform: {intent['platform']}"
-        if intent.get('complexity'):
-            intent_context += f"\nUser level: {intent['complexity']}"
-        if intent.get('requirements'):
-            intent_context += f"\nRequirements: {', '.join(intent['requirements'])}"
-        
-        prompt = f"""You are a documentation expert helping users navigate complex documentation.
+        docs_text = self._format_docs_for_prompt(docs)
 
-User wants to: {user_query}
-{intent_context}
+        prompt = f"""You are a technical writer creating step-by-step guides from documentation.
 
-Available documentation sections:
+USER GOAL: {user_query}
+
+AVAILABLE DOCS:
 {docs_text}
 
-Create a step-by-step journey that helps the user achieve their goal. Each step should:
-1. Reference specific documentation sections from the list above
-2. Be in logical order (prerequisites first)
-3. Include clear, actionable instructions
-4. Reference exact doc_path values from the available sections
+Create a clear step-by-step guide. For each step:
+- Choose the MOST RELEVANT docs from the list above
+- Reference exact doc_path values shown
+- Make sure docs actually match the step content
 
-Return ONLY valid JSON in this exact format:
+Return ONLY JSON:
 {{
   "steps": [
     {{
       "step_number": 1,
-      "title": "Step title",
-      "description": "Brief description of what this step covers",
-      "doc_paths": ["/path/to/doc.md"],
-      "doc_urls": ["https://docs.privy.io/path/to/doc.md"],
+      "title": "Clear step title",
+      "description": "What this step does",
+      "doc_paths": ["/exact/path/from/list.md"],
+      "doc_urls": ["https://docs.privy.io/exact/path"],
       "prerequisites": [],
       "estimated_time": "5 min",
       "complexity": "beginner"
@@ -271,62 +234,28 @@ Return ONLY valid JSON in this exact format:
 }}
 
 Rules:
-- Only reference doc_paths that exist in the available sections above
-- Steps should be ordered logically (dependencies first)
-- Include 3-{max_steps} steps
-- Each step should reference 1-3 relevant doc sections
-- Prerequisites should reference step_numbers of previous steps
-- Complexity: beginner, intermediate, or advanced
-- Estimated time: realistic (e.g., "5 min", "10 min", "15 min")
-
-Return ONLY the JSON, no other text."""
+- Use 3-8 steps maximum
+- Each step needs 1-2 most relevant docs
+- Only use doc_paths exactly as shown above
+- Make sure docs are actually about the step topic"""
 
         try:
-            # Use Claude for journey generation
-            response_text = self.llm.generate(
-                prompt=prompt,
-                max_tokens=4000,
-                temperature=temperature
-            )
-            
-            response_text = response_text.strip()
-            
-            # Try to extract JSON if wrapped in markdown code blocks
-            if "```json" in response_text:
-                parts = response_text.split("```json")
-                if len(parts) > 1:
-                    json_part = parts[1].split("```")[0].strip()
-                    if json_part:
-                        response_text = json_part
-            elif "```" in response_text:
-                parts = response_text.split("```")
-                if len(parts) > 1:
-                    json_part = parts[1].split("```")[0].strip()
-                    if json_part:
-                        response_text = json_part
-            
-            # Debug: Print response preview
-            print(f"📝 LLM Response preview (first 300 chars): {response_text[:300]}")
-            
-            # Parse JSON
-            journey_data = json.loads(response_text)
-            steps = journey_data.get('steps', [])
-            if not steps:
-                print(f"⚠️  No steps in parsed JSON. Full response keys: {list(journey_data.keys())}")
-                print(f"⚠️  Response preview: {response_text[:500]}")
-            else:
-                print(f"✅ Parsed {len(steps)} steps successfully")
+            response = self.llm.generate(prompt=prompt, max_tokens=3000, temperature=0.3)
+            response = response.strip()
+
+            # Extract JSON
+            if "```json" in response:
+                response = response.split("```json")[1].split("```")[0].strip()
+            elif "```" in response:
+                response = response.split("```")[1].split("```")[0].strip()
+
+            data = json.loads(response)
+            steps = data.get('steps', [])
+            print(f"✅ Generated {len(steps)} steps")
             return steps
-            
-        except json.JSONDecodeError as e:
-            print(f"❌ Failed to parse LLM response as JSON: {e}")
-            print(f"❌ Response (first 500 chars): {response_text[:500]}")
-            print(f"❌ Response (last 200 chars): {response_text[-200:]}")
-            return []
+
         except Exception as e:
-            print(f"❌ Error calling LLM: {e}")
-            import traceback
-            traceback.print_exc()
+            print(f"❌ LLM error: {e}")
             return []
     
     def _format_docs_for_prompt(self, docs: List[Dict]) -> str:
@@ -343,6 +272,7 @@ Return ONLY the JSON, no other text."""
             )
         return "\n\n".join(formatted)
     
+    
     def _validate_steps(
         self,
         steps: List[Dict],
@@ -350,40 +280,40 @@ Return ONLY the JSON, no other text."""
     ) -> List[Dict]:
         """
         Validate that referenced docs exist in vector store
-        
+
         Args:
             steps: Generated steps from Claude
             available_docs: Docs that were found in search
-        
+
         Returns:
             Validated steps (invalid references removed)
         """
         # Create lookup for available docs
         available_paths = {doc['doc_path'] for doc in available_docs}
         available_urls = {doc['doc_url'] for doc in available_docs}
-        
+
         validated = []
-        
+
         for step in steps:
             # Validate doc_paths
             valid_paths = []
             valid_urls = []
-            
+
             doc_paths = step.get('doc_paths', [])
             doc_urls = step.get('doc_urls', [])
-            
+
             # Check each path
             for path in doc_paths:
                 if path in available_paths:
                     valid_paths.append(path)
                 else:
                     print(f"  ⚠️  Invalid doc_path: {path}")
-            
+
             # Check each URL
             for url in doc_urls:
                 if url in available_urls:
                     valid_urls.append(url)
-            
+
             # Only include step if it has at least one valid reference
             if valid_paths or valid_urls:
                 step['doc_paths'] = valid_paths
@@ -391,7 +321,7 @@ Return ONLY the JSON, no other text."""
                 validated.append(step)
             else:
                 print(f"  ⚠️  Skipping step '{step.get('title')}' - no valid doc references")
-        
+
         return validated
     
     def _estimate_total_time(self, steps: List[Dict]) -> str:

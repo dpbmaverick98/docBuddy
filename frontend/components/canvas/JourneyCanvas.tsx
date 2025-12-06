@@ -323,7 +323,19 @@ export default function JourneyCanvas({ journey }: JourneyCanvasProps) {
         <Controls className="!bg-[#252525] !border-[#3a3a3a]" />
         {journey && (
           <Panel position="top-left" className="bg-[#252525]/90 backdrop-blur p-4 rounded-lg shadow border border-[#3a3a3a] max-w-md">
-            <h3 className="font-bold text-[#d4d4d4]">{journey.goal}</h3>
+            <h3 className="font-bold text-[#d4d4d4]">
+              {journey.intent?.goal || journey.goal}
+            </h3>
+            {journey.intent?.goal && journey.intent.goal !== journey.goal && (
+              <p className="text-xs text-[#5a5a5a] italic mb-1">
+                "{journey.goal}"
+              </p>
+            )}
+            {journey.intent?.complexity && (
+              <p className="text-xs text-[#a855f7] font-medium mb-1">
+                {journey.intent.complexity.charAt(0).toUpperCase() + journey.intent.complexity.slice(1)} Level
+              </p>
+            )}
             <p className="text-sm text-[#858585]">
               {journey.total_steps} steps • {journey.estimated_time}
             </p>

@@ -19,6 +19,13 @@ export interface JourneyStep {
 
 export interface Journey {
   goal: string;
+  intent?: {
+    goal: string;
+    platform?: string;
+    complexity: string;
+    keywords?: string[];
+    requirements?: string[];
+  };
   steps: JourneyStep[];
   total_steps: number;
   estimated_time: string;
@@ -95,6 +102,7 @@ export default function Home() {
       console.log("✅ Steps count:", data.steps?.length);
       console.log("✅ Total steps:", data.total_steps);
       console.log("✅ Goal:", data.goal);
+      console.log("✅ Intent:", data.intent);
       
       // Ensure data structure matches interface
       if (data.steps && Array.isArray(data.steps) && data.steps.length > 0) {

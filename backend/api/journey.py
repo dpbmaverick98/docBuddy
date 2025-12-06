@@ -3,7 +3,7 @@ Journey generation API endpoints
 """
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from services.journey_generator import JourneyGenerator
 
 router = APIRouter(prefix="/api/journey", tags=["journey"])
@@ -17,6 +17,7 @@ class JourneyRequest(BaseModel):
 
 class JourneyResponse(BaseModel):
     goal: str
+    intent: Optional[Dict[str, Any]] = None
     steps: List[dict]
     total_steps: int
     estimated_time: str

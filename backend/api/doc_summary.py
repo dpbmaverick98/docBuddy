@@ -12,6 +12,9 @@ router = APIRouter(prefix="/api/docs", tags=["docs"])
 class SummaryRequest(BaseModel):
     doc_paths: List[str]
     max_length: Optional[int] = 300
+    step_title: Optional[str] = None
+    step_description: Optional[str] = None
+    step_number: Optional[int] = None
 
 
 class SummaryResponse(BaseModel):
@@ -34,7 +37,10 @@ async def get_doc_summaries(request: SummaryRequest):
         summarizer = DocSummarizer()
         summaries = summarizer.get_summaries(
             doc_paths=request.doc_paths,
-            max_length=request.max_length
+            max_length=request.max_length,
+            step_title=request.step_title,
+            step_description=request.step_description,
+            step_number=request.step_number
         )
         
         return SummaryResponse(summaries=summaries)

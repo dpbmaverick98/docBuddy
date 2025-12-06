@@ -263,8 +263,8 @@ export default function JourneyCanvas({ journey }: JourneyCanvasProps) {
     const initialNodes: Node[] = journey.steps.map((step) => ({
       id: `step-${step.step_number}`,
       type: 'stepNode',
-      data: { 
-        step, 
+      data: {
+        step,
         onChat: (s: JourneyStep, id: string) => onChatRef.current?.(s, id),
         onExpand: (s: JourneyStep, id: string) => onExpandRef.current?.(s, id)
       },

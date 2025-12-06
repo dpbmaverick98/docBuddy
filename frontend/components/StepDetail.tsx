@@ -83,6 +83,9 @@ export default function StepDetail({ step, onClose }: StepDetailProps) {
           body: JSON.stringify({
             doc_paths: step.doc_paths,
             max_length: 3000,
+            step_title: step.title,
+            step_description: step.description,
+            step_number: step.step_number,
           }),
         });
 

@@ -80,7 +80,7 @@ export default function JourneyCanvas({ journey, enhancedContext }: JourneyCanva
     if (!journey) return;
 
     try {
-      // Create a clean version of the journey data for copying
+      // Create a comprehensive journey context for copying
       const journeyContext = {
         goal: journey.goal,
         intent: journey.intent,
@@ -93,12 +93,35 @@ export default function JourneyCanvas({ journey, enhancedContext }: JourneyCanva
         })),
         total_steps: journey.total_steps,
         estimated_time: journey.estimated_time,
-        // Include enhanced context if available
-        enhanced_context: enhancedContext ? {
-          query: enhancedContext.query,
-          intent: enhancedContext.intent,
-          docs_count: enhancedContext.docs?.length || 0
-        } : undefined
+        // Include full enhanced RAG context with filtered documents
+        rag_context: enhancedContext ? {
+          original_query: enhancedContext.query,
+          extracted_intent: enhancedContext.intent,
+          retrieved_documents: enhancedContext.docs?.map((doc, index) => ({
+            rank: index + 1,
+            doc_path: doc.doc_path,
+            doc_title: doc.doc_title,
+            doc_url: doc.doc_url,
+            heading: doc.heading,
+            content_preview: doc.content?.substring(0, 200) + (doc.content?.length > 200 ? '...' : ''),
+            distance: doc.distance,
+            score: doc.score || doc.relevance_score
+          })) || [],
+          total_docs_retrieved: enhancedContext.docs?.length || 0,
+          search_strategy: 'cohere_embeddings + multi_query_expansion + reranking + compression'
+        } : undefined,
+        // Metadata about the generation process
+        metadata: {
+          generated_at: new Date().toISOString(),
+          optimizations_applied: [
+            'intent_extraction',
+            'query_expansion',
+            'vector_search',
+            'cohere_reranking',
+            'contextual_compression'
+          ],
+          model_used: 'claude-3-5-sonnet-20241022'
+        }
       };
 
       await navigator.clipboard.writeText(JSON.stringify(journeyContext, null, 2));
@@ -387,7 +410,7 @@ export default function JourneyCanvas({ journey, enhancedContext }: JourneyCanva
             <button
               onClick={handleCopyJourney}
               className="flex items-center gap-2 px-3 py-2 bg-[#a855f7]/20 hover:bg-[#a855f7]/30 border border-[#a855f7]/30 rounded-lg transition-colors text-sm font-medium text-[#d4d4d4] hover:text-white"
-              title="Copy journey context to clipboard"
+              title="Copy journey + RAG context (docs, rankings, optimizations) to clipboard"
             >
               {copied ? (
                 <>
@@ -397,7 +420,7 @@ export default function JourneyCanvas({ journey, enhancedContext }: JourneyCanva
               ) : (
                 <>
                   <Copy className="w-4 h-4" />
-                  Copy Journey
+                  Copy Context
                 </>
               )}
             </button>

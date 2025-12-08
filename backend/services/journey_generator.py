@@ -111,9 +111,15 @@ class JourneyGenerator:
         # Step 5: Response
         return {
             'goal': user_query,
+            'intent': intent,  # Store intent for step detail
             'steps': validated_steps,
             'total_steps': len(validated_steps),
-            'estimated_time': self._estimate_total_time(validated_steps)
+            'estimated_time': self._estimate_total_time(validated_steps),
+            'enhanced_context': {
+                'docs': docs,  # Store the enhanced RAG docs for step detail
+                'query': user_query,
+                'intent': intent
+            }
         }
     
     def _search_with_rag(

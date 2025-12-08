@@ -6,6 +6,7 @@ Uses Claude Sonnet 4.5
 from typing import List, Dict, Optional
 from indexer.vector_store import VectorStore
 from services.llm_service import ClaudeService
+from services.rag_engine import RAGEngine
 import hashlib
 import json
 from dotenv import load_dotenv
@@ -72,7 +73,8 @@ class DocSummarizer:
         max_length: int = 3000,
         step_title: Optional[str] = None,
         step_description: Optional[str] = None,
-        step_number: Optional[int] = None
+        step_number: Optional[int] = None,
+        enhanced_context: Optional[Dict] = None
     ) -> List[Dict]:
         """
         Get summaries for multiple doc paths, tailored to a specific step theme
@@ -83,10 +85,22 @@ class DocSummarizer:
             step_title: Title of the step for context-aware summarization
             step_description: Description of the step for context-aware summarization
             step_number: Step number in the journey for context
+            enhanced_context: Enhanced RAG context from journey generation (optional)
 
         Returns:
             List of dicts with doc_path, summary, url, title
         """
+        # Use RAG optimizations if enhanced context is available
+        if enhanced_context and step_title:
+            return self._get_summaries_with_rag_optimizations(
+                doc_paths=doc_paths,
+                max_length=max_length,
+                step_title=step_title,
+                step_description=step_description,
+                step_number=step_number,
+                enhanced_context=enhanced_context
+            )
+
         summaries = []
         
         for doc_path in doc_paths:
@@ -192,6 +206,180 @@ class DocSummarizer:
                 })
         
         return summaries
+
+    def _get_summaries_with_rag_optimizations(
+        self,
+        doc_paths: List[str],
+        max_length: int = 3000,
+        step_title: Optional[str] = None,
+        step_description: Optional[str] = None,
+        step_number: Optional[int] = None,
+        enhanced_context: Dict = None
+    ) -> List[Dict]:
+        """
+        Get summaries using RAG optimizations from enhanced journey context
+
+        Args:
+            doc_paths: List of doc paths to summarize
+            max_length: Maximum length of summary in characters
+            step_title: Title of the step for context-aware summarization
+            step_description: Description of the step for context-aware summarization
+            step_number: Step number in the journey for context
+            enhanced_context: Enhanced RAG context from journey generation
+
+        Returns:
+            List of dicts with doc_path, summary, url, title
+        """
+        summaries = []
+        journey_docs = enhanced_context.get('docs', [])
+        journey_intent = enhanced_context.get('intent', {})
+        journey_query = enhanced_context.get('query', '')
+
+        # Initialize RAG engine for optimizations
+        rag_engine = RAGEngine(collection_name="docs")
+
+        for doc_path in doc_paths:
+            try:
+                # Find matching docs from journey context
+                relevant_journey_docs = [
+                    doc for doc in journey_docs
+                    if doc.get('doc_path') == doc_path
+                ]
+
+                if relevant_journey_docs:
+                    # Use the already optimized docs from journey generation
+                    # Create step-specific query for reranking
+                    step_query = f"{step_title}"
+                    if step_description:
+                        step_query += f" {step_description}"
+
+                    # Extract content from relevant docs
+                    candidate_texts = [
+                        doc.get('content', '') for doc in relevant_journey_docs[:5]  # Top 5
+                    ]
+
+                    if candidate_texts:
+                        # Rerank docs specifically for this step
+                        reranked_docs = rag_engine.rerank_documents(
+                            query=step_query,
+                            documents=candidate_texts,
+                            top_n=2  # Get top 2 most relevant for this step
+                        )
+
+                        # Compress the top result for cleaner summary
+                        if reranked_docs:
+                            top_doc = reranked_docs[0]['content']
+                            compressed_content = rag_engine.compress_context(
+                                query=step_query,
+                                documents=[top_doc]
+                            )
+
+                            if compressed_content:
+                                summary_content = compressed_content[0][:max_length]
+                            else:
+                                summary_content = top_doc[:max_length]
+                        else:
+                            summary_content = candidate_texts[0][:max_length]
+                    else:
+                        summary_content = relevant_journey_docs[0].get('content', '')[:max_length]
+                else:
+                    # Fallback to regular search if no journey docs match
+                    summary_content = self._get_regular_summary(
+                        doc_path=doc_path,
+                        max_length=max_length,
+                        step_title=step_title,
+                        step_description=step_description
+                    )
+
+                # Get metadata for response
+                metadata = self._get_doc_metadata(doc_path)
+
+                summaries.append({
+                    'doc_path': doc_path,
+                    'summary': summary_content,
+                    'url': metadata.get('url', ''),
+                    'title': metadata.get('title', ''),
+                    'step_relevant': bool(relevant_journey_docs)  # Flag if this was enhanced
+                })
+
+            except Exception as e:
+                print(f"❌ Error summarizing {doc_path} with RAG: {e}")
+                # Fallback to regular summary
+                try:
+                    fallback_summary = self._get_regular_summary(
+                        doc_path=doc_path,
+                        max_length=max_length,
+                        step_title=step_title,
+                        step_description=step_description
+                    )
+                    metadata = self._get_doc_metadata(doc_path)
+                    summaries.append({
+                        'doc_path': doc_path,
+                        'summary': fallback_summary,
+                        'url': metadata.get('url', ''),
+                        'title': metadata.get('title', ''),
+                        'step_relevant': False
+                    })
+                except Exception as e2:
+                    print(f"❌ Fallback also failed for {doc_path}: {e2}")
+
+        return summaries
+
+    def _get_regular_summary(
+        self,
+        doc_path: str,
+        max_length: int = 3000,
+        step_title: Optional[str] = None,
+        step_description: Optional[str] = None
+    ) -> str:
+        """Fallback method for regular summarization without RAG optimizations"""
+        # This is extracted from the original get_summaries logic
+        base_query = doc_path
+        if step_title:
+            base_query = f"{step_title} {doc_path}"
+
+        results = self.vector_store.search(
+            query=base_query,
+            n_results=8,
+            filter_metadata={"doc_path": doc_path}
+        )
+
+        if not results:
+            all_results = self.vector_store.search(query=base_query, n_results=15)
+            results = [r for r in all_results if r.get('metadata', {}).get('doc_path') == doc_path]
+
+        if not results:
+            return f"No content found for {doc_path}"
+
+        # Combine and summarize content
+        content_parts = []
+        for result in results[:5]:  # Use top 5 results
+            content = result.get('content', '')
+            if content and len(' '.join(content_parts)) + len(content) < max_length:
+                content_parts.append(content)
+
+        combined_content = ' '.join(content_parts)
+        return combined_content[:max_length]
+
+    def _get_doc_metadata(self, doc_path: str) -> Dict:
+        """Get document metadata"""
+        try:
+            # Search for any chunk from this doc to get metadata
+            results = self.vector_store.search(
+                query=doc_path,
+                n_results=1,
+                filter_metadata={"doc_path": doc_path}
+            )
+            if results:
+                metadata = results[0].get('metadata', {})
+                return {
+                    'url': metadata.get('doc_url', ''),
+                    'title': metadata.get('doc_title', '')
+                }
+        except Exception as e:
+            print(f"Error getting metadata for {doc_path}: {e}")
+
+        return {'url': '', 'title': ''}
     
     def _generate_summary(
         self,

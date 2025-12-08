@@ -206,7 +206,7 @@ export default function Home() {
         )}
         
         <ReactFlowProvider>
-          <JourneyCanvas journey={journey} />
+          <JourneyCanvas journey={journey} enhancedContext={journey?.enhanced_context} />
         </ReactFlowProvider>
       </div>
     </main>

@@ -3,7 +3,7 @@ Documentation summary API endpoints
 """
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Dict
 from services.doc_summarizer import DocSummarizer
 
 router = APIRouter(prefix="/api/docs", tags=["docs"])
@@ -15,6 +15,7 @@ class SummaryRequest(BaseModel):
     step_title: Optional[str] = None
     step_description: Optional[str] = None
     step_number: Optional[int] = None
+    enhanced_context: Optional[Dict] = None
 
 
 class SummaryResponse(BaseModel):
@@ -40,7 +41,8 @@ async def get_doc_summaries(request: SummaryRequest):
             max_length=request.max_length,
             step_title=request.step_title,
             step_description=request.step_description,
-            step_number=request.step_number
+            step_number=request.step_number,
+            enhanced_context=request.enhanced_context
         )
         
         return SummaryResponse(summaries=summaries)

@@ -10,6 +10,7 @@ interface StepDetailNodeData {
   onClose: (nodeId: string) => void;
   onChat: (step: JourneyStep, sourceNodeId: string) => void;
   sourceStepNodeId?: string; // Original step node ID
+  enhancedContext?: any;
 }
 
 const StepDetailNode = ({ data, id, selected }: NodeProps<StepDetailNodeData>) => {
@@ -56,7 +57,7 @@ const StepDetailNode = ({ data, id, selected }: NodeProps<StepDetailNodeData>) =
             scrollbarColor: '#3a3a3a #1e1e1e',
           }}
         >
-          <StepDetail step={data.step} onClose={() => data.onClose(id)} />
+          <StepDetail step={data.step} onClose={() => data.onClose(id)} enhancedContext={data.enhancedContext} />
         </div>
       </div>
     </ResizableWrapper>

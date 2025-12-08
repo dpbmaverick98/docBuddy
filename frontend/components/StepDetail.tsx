@@ -10,6 +10,7 @@ import { Copy, Check } from "lucide-react";
 interface StepDetailProps {
   step: JourneyStep;
   onClose: () => void;
+  enhancedContext?: any;
 }
 
 interface DocSummary {
@@ -61,7 +62,7 @@ const CodeBlock = ({ inline, className, children, ...props }: any) => {
   );
 };
 
-export default function StepDetail({ step, onClose }: StepDetailProps) {
+export default function StepDetail({ step, onClose, enhancedContext }: StepDetailProps) {
   const [summaries, setSummaries] = useState<DocSummary[]>([]);
   const [loadingSummaries, setLoadingSummaries] = useState(true);
 
@@ -86,6 +87,7 @@ export default function StepDetail({ step, onClose }: StepDetailProps) {
             step_title: step.title,
             step_description: step.description,
             step_number: step.step_number,
+            enhanced_context: enhancedContext,
           }),
         });
 

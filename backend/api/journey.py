@@ -21,6 +21,7 @@ class JourneyResponse(BaseModel):
     steps: List[dict]
     total_steps: int
     estimated_time: str
+    enhanced_context: Optional[Dict[str, Any]] = None
 
 
 @router.post("/generate", response_model=JourneyResponse)

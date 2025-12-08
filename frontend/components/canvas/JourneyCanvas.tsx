@@ -33,6 +33,7 @@ const nodeTypes = {
 
 interface JourneyCanvasProps {
   journey: Journey | null;
+  enhancedContext?: any;
 }
 
 const dagreGraph = new dagre.graphlib.Graph();
@@ -65,7 +66,7 @@ const getLayoutedElements = (nodes: Node[], edges: Edge[]) => {
   return { nodes, edges };
 };
 
-export default function JourneyCanvas({ journey }: JourneyCanvasProps) {
+export default function JourneyCanvas({ journey, enhancedContext }: JourneyCanvasProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const { fitView, getNode, getNodes } = useReactFlow();
@@ -201,11 +202,12 @@ export default function JourneyCanvas({ journey }: JourneyCanvasProps) {
       zIndex: zIndexCounter.current,
       width: 800, // Reduced from 1000
       height: 600, // Reduced from 800
-      data: { 
+      data: {
         step,
         onClose,
         onChat: onChatRef.current!,
-        sourceStepNodeId: sourceNodeId
+        sourceStepNodeId: sourceNodeId,
+        enhancedContext
       },
     };
 

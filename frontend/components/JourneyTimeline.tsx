@@ -28,6 +28,7 @@ export default function JourneyTimeline({ journey }: JourneyTimelineProps) {
         <StepDetail
           step={selectedStep}
           onClose={() => setSelectedStep(null)}
+          enhancedContext={journey?.enhanced_context}
         />
       ) : (
         <div className="space-y-4">

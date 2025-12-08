@@ -34,6 +34,7 @@ const nodeTypes = {
 interface JourneyCanvasProps {
   journey: Journey | null;
   enhancedContext?: any;
+  selectedModel?: string;
 }
 
 const dagreGraph = new dagre.graphlib.Graph();
@@ -66,7 +67,7 @@ const getLayoutedElements = (nodes: Node[], edges: Edge[]) => {
   return { nodes, edges };
 };
 
-export default function JourneyCanvas({ journey, enhancedContext }: JourneyCanvasProps) {
+export default function JourneyCanvas({ journey, enhancedContext, selectedModel }: JourneyCanvasProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const { fitView, getNode, getNodes } = useReactFlow();
@@ -203,7 +204,8 @@ export default function JourneyCanvas({ journey, enhancedContext }: JourneyCanva
       data: {
         step,
         onClose,
-        enhancedContext
+        enhancedContext,
+        selectedModel  // Capture current value
       },
     };
 
@@ -233,7 +235,7 @@ export default function JourneyCanvas({ journey, enhancedContext }: JourneyCanva
     
     // Use our new fit function
     fitToNode(chatNodeId, 0.2);
-  }, [getNodes, setNodes, setEdges, findStepNodeId, edges, fitToNode]);
+  }, [getNodes, setNodes, setEdges, findStepNodeId, edges, fitToNode, enhancedContext, selectedModel]); // Add selectedModel and enhancedContext here
 
   // Helper to spawn a step detail node
   const onExpand = useCallback((step: JourneyStep, sourceNodeId: string) => {
@@ -257,7 +259,8 @@ export default function JourneyCanvas({ journey, enhancedContext }: JourneyCanva
         onClose,
         onChat: onChatRef.current!,
         sourceStepNodeId: sourceNodeId,
-        enhancedContext
+        enhancedContext,
+        selectedModel  // This will now have the current value when expand is clicked
       },
     };
 
@@ -285,7 +288,7 @@ export default function JourneyCanvas({ journey, enhancedContext }: JourneyCanva
     
     // Use our new fit function
     fitToNode(detailNodeId, 0.15);
-  }, [getNodes, setNodes, setEdges, fitToNode]);
+  }, [getNodes, setNodes, setEdges, fitToNode, enhancedContext, selectedModel]); // Add selectedModel and enhancedContext here
 
   // Update refs when callbacks change
   useEffect(() => {

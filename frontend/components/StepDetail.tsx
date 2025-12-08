@@ -11,6 +11,7 @@ interface StepDetailProps {
   step: JourneyStep;
   onClose: () => void;
   enhancedContext?: any;
+  selectedModel?: string;
 }
 
 interface DocSummary {
@@ -62,7 +63,7 @@ const CodeBlock = ({ inline, className, children, ...props }: any) => {
   );
 };
 
-export default function StepDetail({ step, onClose, enhancedContext }: StepDetailProps) {
+export default function StepDetail({ step, onClose, enhancedContext, selectedModel }: StepDetailProps) {
   const [summaries, setSummaries] = useState<DocSummary[]>([]);
   const [loadingSummaries, setLoadingSummaries] = useState(true);
 
@@ -74,22 +75,30 @@ export default function StepDetail({ step, onClose, enhancedContext }: StepDetai
         return;
       }
 
+      // Use selectedModel prop (captured when expand was clicked) as primary source
+      // Fallback to enhancedContext.model, then default to "claude"
+      const modelToUse = selectedModel || enhancedContext?.model || "claude";
+      console.log("📄 StepDetail fetching summaries with model:", modelToUse, "selectedModel prop:", selectedModel, "enhancedContext.model:", enhancedContext?.model);
+
       try {
         setLoadingSummaries(true);
+        const requestBody = {
+          doc_paths: step.doc_paths,
+          max_length: 3000,
+          step_title: step.title,
+          step_description: step.description,
+          step_number: step.step_number,
+          enhanced_context: enhancedContext,
+          model: modelToUse,
+        };
+        console.log("📤 StepDetail sending request:", requestBody);
+
         const response = await fetch("/api/docs/summaries", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({
-            doc_paths: step.doc_paths,
-            max_length: 3000,
-            step_title: step.title,
-            step_description: step.description,
-            step_number: step.step_number,
-            enhanced_context: enhancedContext,
-            model: enhancedContext?.model || "claude",
-          }),
+          body: JSON.stringify(requestBody),
         });
 
         if (response.ok) {
@@ -104,7 +113,7 @@ export default function StepDetail({ step, onClose, enhancedContext }: StepDetai
     };
 
     fetchSummaries();
-  }, [step.doc_paths]);
+  }, [step.doc_paths, selectedModel, enhancedContext]);
 
   return (
     <div className="space-y-4">

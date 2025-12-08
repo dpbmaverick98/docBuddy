@@ -249,38 +249,58 @@ class DocSummarizer:
 
                 if relevant_journey_docs:
                     # Use the already optimized docs from journey generation
+                    # Instead of compressing, use full LLM summarization like the regular path
+
                     # Create step-specific query for reranking
                     step_query = f"{step_title}"
                     if step_description:
                         step_query += f" {step_description}"
 
-                    # Extract content from relevant docs
-                    candidate_texts = [
-                        doc.get('content', '') for doc in relevant_journey_docs[:5]  # Top 5
-                    ]
+                    # Extract content from relevant docs and format as chunks
+                    candidate_chunks = []
+                    for doc in relevant_journey_docs[:5]:  # Top 5
+                        chunk_data = {
+                            'content': doc.get('content', ''),
+                            'heading': doc.get('heading', ''),
+                            'url': doc.get('doc_url', ''),
+                            'title': doc.get('doc_title', ''),
+                            'score': doc.get('score', 0.8)  # Default score
+                        }
+                        candidate_chunks.append(chunk_data)
 
-                    if candidate_texts:
+                    if candidate_chunks:
                         # Rerank docs specifically for this step
+                        candidate_texts = [chunk['content'] for chunk in candidate_chunks]
                         reranked_docs = rag_engine.rerank_documents(
                             query=step_query,
                             documents=candidate_texts,
-                            top_n=2  # Get top 2 most relevant for this step
+                            top_n=3  # Get top 3 most relevant for this step
                         )
 
-                        # Compress the top result for cleaner summary
-                        if reranked_docs:
-                            top_doc = reranked_docs[0]['content']
-                            compressed_content = rag_engine.compress_context(
-                                query=step_query,
-                                documents=[top_doc]
-                            )
+                        # Reconstruct chunks with rerank scores
+                        reranked_chunks = []
+                        for rerank_result in reranked_docs:
+                            original_index = rerank_result['index']
+                            if original_index < len(candidate_chunks):
+                                chunk = candidate_chunks[original_index].copy()
+                                chunk['relevance_score'] = rerank_result['relevance_score']
+                                chunk['score'] = rerank_result['relevance_score']
+                                reranked_chunks.append(chunk)
 
-                            if compressed_content:
-                                summary_content = compressed_content[0][:max_length]
-                            else:
-                                summary_content = top_doc[:max_length]
+                        # Select most relevant chunks (same logic as regular path)
+                        selected_chunks = self._select_relevant_chunks(reranked_chunks, step_title, step_description, max_chunks=3)
+
+                        if selected_chunks:
+                            # Generate full LLM summary instead of compression
+                            summary_content = self._generate_summary(
+                                selected_chunks,
+                                max_length,
+                                step_title,
+                                step_description,
+                                step_number
+                            )
                         else:
-                            summary_content = candidate_texts[0][:max_length]
+                            summary_content = candidate_chunks[0]['content'][:max_length]
                     else:
                         summary_content = relevant_journey_docs[0].get('content', '')[:max_length]
                 else:
@@ -428,7 +448,33 @@ class DocSummarizer:
                 step_context += f"\nStep Description: {step_description}"
             step_context += "\n\nGenerate a summary specifically focused on what developers need to know for this step."
 
-        prompt = f"""Summarize the following documentation section in {max_length} characters or less.{step_context}
+        # Adjust prompt based on model type
+        is_k2_model = hasattr(self, 'model_name') and self.model_name == "hf-k2-openai"
+
+        if is_k2_model:
+            # K2 tends to be more concise, so adjust the prompt to encourage more detail
+            prompt = f"""Summarize the following documentation section in {max_length} characters.{step_context}
+
+Focus on WHAT DEVELOPERS NEED TO DO for this specific step:
+- What code to write or configure
+- What steps to take
+- What APIs/functions to use
+- What settings to change
+- Practical implementation details
+
+Write in an action-oriented, developer-focused style. Use imperative mood (e.g., "Set up...", "Configure...", "Call...", "Install...").
+Include sufficient detail for developers to implement this step successfully.
+
+Documentation:
+{combined_content[:input_limit]}
+
+Provide a detailed, actionable summary for developers implementing this step."""
+
+            # Increase max_tokens for K2 to compensate for its conciseness
+            adjusted_max_tokens = int(calculated_max_tokens * 1.5)
+        else:
+            # Original Claude prompt
+            prompt = f"""Summarize the following documentation section in {max_length} characters or less.{step_context}
 
 Focus on WHAT DEVELOPERS NEED TO DO for this specific step:
 - What code to write or configure
@@ -444,11 +490,13 @@ Documentation:
 
 Provide a concise, actionable summary for developers implementing this step."""
 
+            adjusted_max_tokens = calculated_max_tokens
+
         try:
-            # Use Claude for summarization
+            # Use selected LLM for summarization
             summary = self.llm.generate(
                 prompt=prompt,
-                max_tokens=calculated_max_tokens,
+                max_tokens=adjusted_max_tokens,
                 temperature=self.temperature
             )
             

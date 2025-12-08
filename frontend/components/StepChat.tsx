@@ -49,6 +49,8 @@ export default function StepChat({ step, summaries, enhancedContext }: StepChatP
     setLoading(true);
 
     try {
+      const selectedModel = enhancedContext?.model || "claude";
+
       // Combine summaries for context
       const context = summaries.map(s => `${s.title || s.heading}: ${s.summary}`).join("\n\n");
 
@@ -62,7 +64,7 @@ export default function StepChat({ step, summaries, enhancedContext }: StepChatP
           step_description: step.description,
           context: context,
           question: userMessage,
-          model: enhancedContext?.model || "claude",
+          model: selectedModel,
         }),
       });
 

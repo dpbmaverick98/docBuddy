@@ -57,7 +57,25 @@ async def generate_journey(request: JourneyRequest):
         
         if 'error' in journey:
             raise HTTPException(status_code=400, detail=journey['error'])
-        
+
+        # Debug: Check journey structure before returning
+        print(f"🔍 Returning journey with {len(journey.get('steps', []))} steps")
+        print(f"🔍 Journey keys: {list(journey.keys())}")
+        print(f"🔍 Enhanced context keys: {list(journey.get('enhanced_context', {}).keys())}")
+
+        # Test JSON serialization
+        import json
+        try:
+            json_str = json.dumps(journey, default=str)
+            print(f"✅ JSON serialization successful, length: {len(json_str)} chars")
+            print(f"📊 Response size: {len(json_str)/1024:.1f} KB")
+        except Exception as json_error:
+            print(f"❌ JSON serialization failed: {json_error}")
+            import traceback
+            traceback.print_exc()
+            raise HTTPException(status_code=500, detail=f"JSON serialization error: {str(json_error)}")
+
+        print("🏁 About to return journey response")
         return journey
         
     except Exception as e:

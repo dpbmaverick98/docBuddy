@@ -3,21 +3,23 @@
 import { useState } from "react";
 
 interface JourneyChatProps {
-  onGenerate: (query: string, model?: string) => void;
+  onGenerate: (query: string) => void;
   loading: boolean;
   selectedProject: string;
   onProjectChange: (project: string) => void;
   availableProjects: string[];
+  selectedModel: string;
+  onModelChange: (model: string) => void;
 }
 
-export default function JourneyChat({ onGenerate, loading, selectedProject, onProjectChange, availableProjects }: JourneyChatProps) {
+export default function JourneyChat({ onGenerate, loading, selectedProject, onProjectChange, availableProjects, selectedModel, onModelChange }: JourneyChatProps) {
   const [query, setQuery] = useState("");
-  const [selectedModel, setSelectedModel] = useState("claude");
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (query.trim() && !loading) {
-      onGenerate(query.trim(), selectedModel);
+      console.log("🎯 JourneyChat submitting with model:", selectedModel);
+      onGenerate(query.trim());
       setQuery("");
     }
   };
@@ -56,7 +58,10 @@ export default function JourneyChat({ onGenerate, loading, selectedProject, onPr
         </label>
         <select
           value={selectedModel}
-          onChange={(e) => setSelectedModel(e.target.value)}
+          onChange={(e) => {
+            console.log("🔄 Model changed to:", e.target.value);
+            onModelChange(e.target.value);
+          }}
           className="w-full px-3 py-2 bg-[#252525] border border-[#3a3a3a] rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-[#d4d4d4]"
           disabled={loading}
         >

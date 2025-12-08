@@ -83,10 +83,12 @@ class JourneyGenerator:
         Returns:
             Dict with goal, steps, etc.
         """
+
         # Step 1: Extract intent
         print(f"🧠 Extracting intent...")
         intent = self.intent_extractor.extract_intent(user_query)
         print(f"✅ Intent: {intent.get('goal')}")
+        print(f"🔍 Intent keys: {list(intent.keys()) if isinstance(intent, dict) else type(intent)}")
 
         # Step 2: Search for relevant docs
         print(f"🔍 Searching docs...")
@@ -99,6 +101,8 @@ class JourneyGenerator:
             return {'error': 'No relevant documentation found'}
 
         print(f"✅ Found {len(docs)} docs")
+        # Debug: Show available doc paths
+        available_paths = [doc['doc_path'] for doc in docs]
 
         # Step 3: Generate journey with LLM
         print(f"🧠 Generating steps...")
@@ -112,7 +116,7 @@ class JourneyGenerator:
         validated_steps = self._validate_steps(steps, docs)
 
         # Step 5: Response
-        return {
+        response_data = {
             'goal': user_query,
             'intent': intent,  # Store intent for step detail
             'steps': validated_steps,
@@ -125,6 +129,50 @@ class JourneyGenerator:
                 'model': self.model_name  # Store selected model for use in step details/chat
             }
         }
+
+        # Debug: Validate response structure and check for serialization issues
+        print(f"📦 Response structure: goal='{response_data['goal'][:50]}...', steps={len(response_data['steps'])}, model={response_data['enhanced_context']['model']}")
+
+        # Sanitize the docs to ensure JSON serializability
+        try:
+            import json
+            # Test full serialization
+            json_str = json.dumps(response_data, default=str)
+            print(f"✅ Full response JSON serializable, size: {len(json_str)} chars")
+        except Exception as e:
+            print(f"❌ JSON serialization failed: {e}")
+            # Sanitize the docs by converting them to simple dicts
+            sanitized_docs = []
+            for doc in response_data['enhanced_context']['docs']:
+                try:
+                    # Try to create a clean dict with only serializable fields
+                    clean_doc = {
+                        'doc_path': doc.get('doc_path', ''),
+                        'doc_url': doc.get('doc_url', ''),
+                        'doc_title': doc.get('doc_title', ''),
+                        'heading': doc.get('heading', ''),
+                        'content': str(doc.get('content', ''))[:500],  # Ensure content is string
+                        'distance': float(doc.get('distance', 1.0)) if doc.get('distance') is not None else 1.0
+                    }
+                    sanitized_docs.append(clean_doc)
+                except Exception as doc_error:
+                    print(f"⚠️ Skipping problematic doc: {doc_error}")
+                    continue
+
+            response_data['enhanced_context']['docs'] = sanitized_docs
+            print(f"📝 Sanitized {len(sanitized_docs)} docs")
+
+            # Test serialization again
+            try:
+                json_str = json.dumps(response_data, default=str)
+                print(f"✅ Sanitized response JSON serializable, size: {len(json_str)} chars")
+            except Exception as retry_error:
+                print(f"❌ Even sanitized response failed: {retry_error}")
+                # Last resort: remove docs entirely
+                response_data['enhanced_context']['docs'] = []
+                print("📝 Removed docs entirely as last resort")
+
+        return response_data
     
     def _search_with_rag(
         self,
@@ -224,7 +272,8 @@ AVAILABLE DOCS:
 
 Create a clear step-by-step guide. For each step:
 - Choose the MOST RELEVANT docs from the list above
-- Reference exact doc_path values shown
+- Reference exact doc_path values shown in the "Path:" field
+- Include the corresponding doc_url from the "URL:" field for each doc_path
 - Make sure docs actually match the step content
 
 Return ONLY JSON:
@@ -246,7 +295,8 @@ Return ONLY JSON:
 Rules:
 - Use 3-8 steps maximum
 - Each step needs 1-2 most relevant docs
-- Only use doc_paths exactly as shown above
+- Use EXACT doc_paths and doc_urls as shown in the AVAILABLE DOCS section above
+- Both doc_paths and doc_urls arrays must be populated for each step
 - Make sure docs are actually about the step topic"""
 
         try:
@@ -298,31 +348,40 @@ Rules:
         Returns:
             Validated steps (invalid references removed)
         """
-        # Create lookup for available docs
-        available_paths = {doc['doc_path'] for doc in available_docs}
-        available_urls = {doc['doc_url'] for doc in available_docs}
+        # Create lookup maps for available docs
+        available_path_to_doc = {doc['doc_path']: doc for doc in available_docs}
+        available_url_to_doc = {doc['doc_url']: doc for doc in available_docs}
 
         validated = []
 
         for step in steps:
-            # Validate doc_paths
+            # Validate doc_paths and populate corresponding URLs
             valid_paths = []
             valid_urls = []
 
             doc_paths = step.get('doc_paths', [])
             doc_urls = step.get('doc_urls', [])
 
-            # Check each path
+            # Check each path and populate corresponding URL
             for path in doc_paths:
-                if path in available_paths:
+                if path in available_path_to_doc:
                     valid_paths.append(path)
+                    # Add the corresponding URL if not already present
+                    corresponding_url = available_path_to_doc[path]['doc_url']
+                    if corresponding_url and corresponding_url not in valid_urls:
+                        valid_urls.append(corresponding_url)
                 else:
-                    print(f"  ⚠️  Invalid doc_path: {path}")
+                    print(f"  ⚠️  Invalid doc_path: {path} (not in available docs)")
 
-            # Check each URL
+            # Check each URL (in case LLM provided URLs directly)
             for url in doc_urls:
-                if url in available_urls:
-                    valid_urls.append(url)
+                if url in available_url_to_doc:
+                    if url not in valid_urls:
+                        valid_urls.append(url)
+                    # Add corresponding path if not already present
+                    corresponding_path = available_url_to_doc[url]['doc_path']
+                    if corresponding_path and corresponding_path not in valid_paths:
+                        valid_paths.append(corresponding_path)
 
             # Only include step if it has at least one valid reference
             if valid_paths or valid_urls:

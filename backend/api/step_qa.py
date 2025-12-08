@@ -3,6 +3,7 @@ Step Q&A API endpoint
 """
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+from typing import Optional
 from services.step_qa import StepQAService
 
 router = APIRouter(prefix="/api/journey", tags=["journey"])

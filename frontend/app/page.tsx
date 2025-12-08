@@ -43,6 +43,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [selectedProject, setSelectedProject] = useState<string>("privy");
   const [availableProjects, setAvailableProjects] = useState<string[]>(["privy", "stripe", "aws"]);
+  const [selectedModel, setSelectedModel] = useState<string>("claude");
 
   // Fetch available projects from backend
   useEffect(() => {
@@ -62,7 +63,8 @@ export default function Home() {
     fetchProjects();
   }, []);
 
-  const handleGenerateJourney = async (query: string, model?: string) => {
+  const handleGenerateJourney = async (query: string) => {
+    console.log("🚀 handleGenerateJourney called with selectedModel:", selectedModel);
     setLoading(true);
     setError(null);
     setJourney(null);
@@ -71,27 +73,33 @@ export default function Home() {
       // Create AbortController for timeout
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minute timeout
-      
+
+      const requestBody = { query, max_steps: 10, project: selectedProject, model: selectedModel };
+      console.log("📤 Sending journey request:", requestBody);
+
       const response = await fetch("/api/journey/generate", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ query, max_steps: 10, project: selectedProject, model: model || "claude" }),
+        body: JSON.stringify(requestBody),
         signal: controller.signal,
       });
 
       clearTimeout(timeoutId);
 
       if (!response.ok) {
+        console.error(`❌ Journey API failed with status: ${response.status}`);
         // Check if response is JSON
         const contentType = response.headers.get("content-type");
         if (contentType && contentType.includes("application/json")) {
           const errorData = await response.json();
+          console.error("❌ Error data:", errorData);
           throw new Error(errorData.detail || "Failed to generate journey");
         } else {
           // Non-JSON error response (likely HTML error page)
           const errorText = await response.text();
+          console.error("❌ Error text:", errorText.substring(0, 200));
           throw new Error(`Server error (${response.status}): ${errorText.substring(0, 100)}`);
         }
       }
@@ -109,13 +117,21 @@ export default function Home() {
       console.log("✅ Total steps:", data.total_steps);
       console.log("✅ Goal:", data.goal);
       console.log("✅ Intent:", data.intent);
+      console.log("✅ Enhanced context model:", data.enhanced_context?.model);
+      console.log("✅ Current selectedModel in state:", selectedModel);
       
       // Ensure data structure matches interface
-      if (data.steps && Array.isArray(data.steps) && data.steps.length > 0) {
-        setJourney(data);
-      } else {
-        console.error("❌ No steps in response:", data);
-        throw new Error("No steps generated");
+      try {
+        if (data.steps && Array.isArray(data.steps) && data.steps.length > 0) {
+          console.log("✅ Setting journey data");
+          setJourney(data);
+        } else {
+          console.error("❌ No steps in response:", data);
+          throw new Error("No steps generated");
+        }
+      } catch (validationError) {
+        console.error("❌ Data validation error:", validationError);
+        throw validationError;
       }
     } catch (err) {
       if (err instanceof Error) {
@@ -162,6 +178,8 @@ export default function Home() {
               selectedProject={selectedProject}
               onProjectChange={setSelectedProject}
               availableProjects={availableProjects}
+              selectedModel={selectedModel}
+              onModelChange={setSelectedModel}
             />
             {error && (
               <div className="mt-4 p-4 bg-red-900/20 border border-red-500/30 rounded-lg">
@@ -212,7 +230,7 @@ export default function Home() {
         )}
         
         <ReactFlowProvider>
-          <JourneyCanvas journey={journey} enhancedContext={journey?.enhanced_context} />
+          <JourneyCanvas journey={journey} enhancedContext={journey?.enhanced_context} selectedModel={selectedModel} />
         </ReactFlowProvider>
       </div>
     </main>

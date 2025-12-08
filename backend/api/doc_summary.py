@@ -27,12 +27,13 @@ class SummaryResponse(BaseModel):
 async def get_doc_summaries(request: SummaryRequest):
     """
     Get summaries for multiple documentation paths
-    
+
     Example:
         POST /api/docs/summaries
         {
             "doc_paths": ["/wallets/gas-and-asset-management/gas/overview.md"],
-            "max_length": 300
+            "max_length": 300,
+            "model": "hf-k2-openai"
         }
     """
     try:

@@ -18,7 +18,7 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import dagre from 'dagre';
-import { Maximize2, MessageSquare } from 'lucide-react';
+import { Maximize2, MessageSquare, Copy, Check } from 'lucide-react';
 import { Journey, JourneyStep } from '@/app/page';
 import StepNode from './nodes/StepNode';
 import ChatNode from './nodes/ChatNode';
@@ -74,6 +74,40 @@ export default function JourneyCanvas({ journey, enhancedContext }: JourneyCanva
   
   const onChatRef = useRef<(step: JourneyStep, sourceNodeId: string) => void>();
   const onExpandRef = useRef<(step: JourneyStep, sourceNodeId: string) => void>();
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyJourney = useCallback(async () => {
+    if (!journey) return;
+
+    try {
+      // Create a clean version of the journey data for copying
+      const journeyContext = {
+        goal: journey.goal,
+        intent: journey.intent,
+        steps: journey.steps.map(step => ({
+          step_number: step.step_number,
+          title: step.title,
+          description: step.description,
+          doc_paths: step.doc_paths,
+          doc_urls: step.doc_urls
+        })),
+        total_steps: journey.total_steps,
+        estimated_time: journey.estimated_time,
+        // Include enhanced context if available
+        enhanced_context: enhancedContext ? {
+          query: enhancedContext.query,
+          intent: enhancedContext.intent,
+          docs_count: enhancedContext.docs?.length || 0
+        } : undefined
+      };
+
+      await navigator.clipboard.writeText(JSON.stringify(journeyContext, null, 2));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (error) {
+      console.error('Failed to copy journey:', error);
+    }
+  }, [journey, enhancedContext]);
 
   // CRITICAL: Wait for node to be measured before fitting
   const fitToNode = useCallback((nodeId: string, padding: number = 0.2) => {
@@ -345,6 +379,28 @@ export default function JourneyCanvas({ journey, enhancedContext }: JourneyCanva
             <p className="text-xs text-[#5a5a5a] mt-2">
               Click <Maximize2 className="inline w-3 h-3"/> to expand a step. Click <MessageSquare className="inline w-3 h-3"/> to chat about it.
             </p>
+          </Panel>
+        )}
+
+        {journey && (
+          <Panel position="top-right" className="bg-[#252525]/90 backdrop-blur p-3 rounded-lg shadow border border-[#3a3a3a]">
+            <button
+              onClick={handleCopyJourney}
+              className="flex items-center gap-2 px-3 py-2 bg-[#a855f7]/20 hover:bg-[#a855f7]/30 border border-[#a855f7]/30 rounded-lg transition-colors text-sm font-medium text-[#d4d4d4] hover:text-white"
+              title="Copy journey context to clipboard"
+            >
+              {copied ? (
+                <>
+                  <Check className="w-4 h-4 text-green-400" />
+                  Copied!
+                </>
+              ) : (
+                <>
+                  <Copy className="w-4 h-4" />
+                  Copy Journey
+                </>
+              )}
+            </button>
           </Panel>
         )}
       </ReactFlow>

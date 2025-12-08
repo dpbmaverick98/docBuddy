@@ -56,7 +56,7 @@ export default function Home() {
     fetchProjects();
   }, []);
 
-  const handleGenerateJourney = async (query: string) => {
+  const handleGenerateJourney = async (query: string, model?: string) => {
     setLoading(true);
     setError(null);
     setJourney(null);
@@ -71,7 +71,7 @@ export default function Home() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ query, max_steps: 10, project: selectedProject }),
+        body: JSON.stringify({ query, max_steps: 10, project: selectedProject, model: model || "claude" }),
         signal: controller.signal,
       });
 

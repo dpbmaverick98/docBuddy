@@ -28,6 +28,8 @@ cohere==4.37
 # LLM APIs
 anthropic>=0.34.0  # Use newer version with messages API
 google-generativeai==0.3.1
+huggingface-hub>=0.20.0
+openai>=1.0.0  # For OpenAI-compatible HuggingFace API
 
 # State management (Week 1, Day 5)
 redis==5.0.1

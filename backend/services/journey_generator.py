@@ -16,7 +16,7 @@ from indexer.vector_store import VectorStore
 from services.rag_engine import RAGEngine
 from services.intent_extractor import IntentExtractor
 from services.prompt_chain import PromptChain
-from services.llm_service import ClaudeService
+from services.llm_service import get_llm_service
 
 load_dotenv()
 
@@ -26,15 +26,17 @@ class JourneyGenerator:
         self,
         collection_name: str = "docs",
         use_rag: bool = True,
-        temperature: float = 0.7
+        temperature: float = 0.7,
+        model_name: str = "claude"
     ):
         """
         Initialize journey generator
-        
+
         Args:
             collection_name: ChromaDB collection name
             use_rag: Use LlamaIndex RAG engine (default: True)
             temperature: Temperature for journey generation (0.0-1.0)
+            model_name: LLM model to use ("claude", "hf-k2", "hf-k2-openai")
         """
         self.use_rag = use_rag
         self.temperature = temperature
@@ -60,9 +62,9 @@ class JourneyGenerator:
         
         # Initialize prompt chain
         self.prompt_chain = PromptChain(temperature=temperature)
-        
-        # Use Claude for journey generation
-        self.llm = ClaudeService()
+
+        # Use selected model for journey generation
+        self.llm = get_llm_service(model_name)
     
     def generate_journey(
         self,

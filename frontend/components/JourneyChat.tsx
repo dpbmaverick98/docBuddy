@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 interface JourneyChatProps {
-  onGenerate: (query: string) => void;
+  onGenerate: (query: string, model?: string) => void;
   loading: boolean;
   selectedProject: string;
   onProjectChange: (project: string) => void;
@@ -12,11 +12,12 @@ interface JourneyChatProps {
 
 export default function JourneyChat({ onGenerate, loading, selectedProject, onProjectChange, availableProjects }: JourneyChatProps) {
   const [query, setQuery] = useState("");
+  const [selectedModel, setSelectedModel] = useState("claude");
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (query.trim() && !loading) {
-      onGenerate(query.trim());
+      onGenerate(query.trim(), selectedModel);
       setQuery("");
     }
   };
@@ -45,6 +46,32 @@ export default function JourneyChat({ onGenerate, loading, selectedProject, onPr
         </select>
         <p className="text-xs text-[#858585] mt-1">
           Choose which project's documentation to search
+        </p>
+      </div>
+
+      {/* Model Selector */}
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-[#d4d4d4] mb-2">
+          LLM Model
+        </label>
+        <select
+          value={selectedModel}
+          onChange={(e) => setSelectedModel(e.target.value)}
+          className="w-full px-3 py-2 bg-[#252525] border border-[#3a3a3a] rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-[#d4d4d4]"
+          disabled={loading}
+        >
+          <option value="claude" className="bg-[#252525] text-[#d4d4d4]">
+            Claude Sonnet 4.5
+          </option>
+          <option value="hf-k2" className="bg-[#252525] text-[#d4d4d4]">
+            HuggingFace K2-Instruct
+          </option>
+          <option value="hf-k2-openai" className="bg-[#252525] text-[#d4d4d4]">
+            HuggingFace K2-Instruct (OpenAI)
+          </option>
+        </select>
+        <p className="text-xs text-[#858585] mt-1">
+          Choose which LLM model to use for generation
         </p>
       </div>
 

@@ -13,6 +13,7 @@ class JourneyRequest(BaseModel):
     query: str
     max_steps: Optional[int] = 10
     project: str = "privy"  # Default to your current project
+    model: Optional[str] = "claude"  # Add model parameter
 
 
 class JourneyResponse(BaseModel):
@@ -34,7 +35,8 @@ async def generate_journey(request: JourneyRequest):
         {
             "query": "I want to set up authentication",
             "max_steps": 5,
-            "project": "privy"
+            "project": "privy",
+            "model": "hf-k2"
         }
     """
     try:
@@ -45,7 +47,8 @@ async def generate_journey(request: JourneyRequest):
         generator = JourneyGenerator(
             collection_name=collection_name,
             use_rag=True,
-            temperature=0.7
+            temperature=0.7,
+            model_name=request.model
         )
         journey = generator.generate_journey(
             user_query=request.query,

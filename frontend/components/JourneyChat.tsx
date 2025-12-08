@@ -61,8 +61,7 @@ export default function JourneyChat({ onGenerate, loading, selectedProject, onPr
           disabled={loading}
         >
           <option value="claude">Claude Sonnet 4.5</option>
-          <option value="hf-k2">HuggingFace K2-Instruct</option>
-          <option value="hf-k2-openai">HuggingFace K2-Instruct (OpenAI)</option>
+          <option value="hf-k2-openai">HuggingFace K2-Instruct</option>
         </select>
         <p className="text-xs text-[#858585] mt-1">
           Choose which LLM model to use for generation

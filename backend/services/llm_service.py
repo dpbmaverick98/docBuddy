@@ -4,7 +4,6 @@ Supports Claude, Gemini, and HuggingFace models
 """
 from anthropic import Anthropic
 from openai import OpenAI
-from huggingface_hub import InferenceClient
 import os
 from dotenv import load_dotenv
 from abc import ABC, abstractmethod
@@ -57,48 +56,6 @@ class ClaudeService(BaseLLMService):
             raise
 
 
-class HuggingFaceK2Service(BaseLLMService):
-    """HuggingFace K2-Instruct model via InferenceClient"""
-
-    def __init__(self):
-        api_key = os.getenv('HF_TOKEN')
-        if not api_key:
-            raise ValueError("HF_TOKEN environment variable not set")
-
-        self.client = InferenceClient(api_key=api_key)
-        self.model = "moonshotai/Kimi-K2-Instruct:novita"
-        print(f"✅ Using HuggingFace K2-Instruct")
-
-    def generate(self, prompt: str, max_tokens: int = 1000, temperature: float = 0.7) -> str:
-        """Generate text using HuggingFace K2-Instruct"""
-        try:
-            completion = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
-                ],
-                max_tokens=max_tokens,
-                temperature=temperature
-            )
-
-            # Extract message content
-            if completion.choices and len(completion.choices) > 0:
-                message = completion.choices[0].message
-                if hasattr(message, 'content'):
-                    return message.content.strip()
-                elif isinstance(message, str):
-                    return message.strip()
-
-            return ""
-
-        except Exception as e:
-            print(f"⚠️  HuggingFace K2 error: {e}")
-            raise
-
-
 class HuggingFaceK2OpenAIService(BaseLLMService):
     """HuggingFace K2-Instruct model via OpenAI-compatible API"""
 
@@ -148,7 +105,7 @@ def get_llm_service(model_name: str = "claude") -> BaseLLMService:
     Factory function to get LLM service based on model name
 
     Args:
-        model_name: One of "claude", "hf-k2", "hf-k2-openai"
+        model_name: One of "claude", "hf-k2-openai"
 
     Returns:
         LLM service instance
@@ -157,8 +114,6 @@ def get_llm_service(model_name: str = "claude") -> BaseLLMService:
 
     if model_name == "claude":
         return ClaudeService()
-    elif model_name == "hf-k2":
-        return HuggingFaceK2Service()
     elif model_name == "hf-k2-openai":
         return HuggingFaceK2OpenAIService()
     else:

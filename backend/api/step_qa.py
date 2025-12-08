@@ -13,6 +13,7 @@ class StepQARequest(BaseModel):
     step_description: str
     context: str
     question: str
+    model: Optional[str] = "claude"
 
 
 class StepQAResponse(BaseModel):
@@ -34,7 +35,7 @@ async def ask_step_question(request: StepQARequest):
         }
     """
     try:
-        qa_service = StepQAService()
+        qa_service = StepQAService(model_name=request.model)
         answer = qa_service.answer_question(
             step_title=request.step_title,
             step_description=request.step_description,

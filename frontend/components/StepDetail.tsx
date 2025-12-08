@@ -88,6 +88,7 @@ export default function StepDetail({ step, onClose, enhancedContext }: StepDetai
             step_description: step.description,
             step_number: step.step_number,
             enhanced_context: enhancedContext,
+            model: enhancedContext?.model || "claude",
           }),
         });
 

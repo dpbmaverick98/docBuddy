@@ -16,6 +16,7 @@ class SummaryRequest(BaseModel):
     step_description: Optional[str] = None
     step_number: Optional[int] = None
     enhanced_context: Optional[Dict] = None
+    model: Optional[str] = "claude"
 
 
 class SummaryResponse(BaseModel):
@@ -35,7 +36,7 @@ async def get_doc_summaries(request: SummaryRequest):
         }
     """
     try:
-        summarizer = DocSummarizer()
+        summarizer = DocSummarizer(model_name=request.model)
         summaries = summarizer.get_summaries(
             doc_paths=request.doc_paths,
             max_length=request.max_length,

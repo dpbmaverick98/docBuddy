@@ -5,7 +5,7 @@ Uses Claude Sonnet 4.5
 """
 from typing import List, Dict, Optional
 from indexer.vector_store import VectorStore
-from services.llm_service import ClaudeService
+from services.llm_service import get_llm_service
 from services.rag_engine import RAGEngine
 import hashlib
 import json
@@ -18,19 +18,20 @@ class DocSummarizer:
     # Class-level cache to persist across instances
     _summary_cache: Dict[str, Dict] = {}
     
-    def __init__(self, collection_name: str = "docs", temperature: float = 0.3):
+    def __init__(self, collection_name: str = "docs", temperature: float = 0.3, model_name: str = "claude"):
         """
         Initialize doc summarizer
-        
+
         Args:
             collection_name: ChromaDB collection name
             temperature: Temperature for summarization (lower = more focused, default: 0.3)
+            model_name: LLM model to use ("claude", "hf-k2-openai")
         """
         self.vector_store = VectorStore(collection_name=collection_name)
         self.temperature = temperature
-        
-        # Use Claude for summarization
-        self.llm = ClaudeService()
+
+        # Use selected model for summarization
+        self.llm = get_llm_service(model_name)
     
     def _get_cache_key(self, doc_path: str, max_length: int, doc_chunks: List[Dict], step_title: Optional[str] = None, step_description: Optional[str] = None) -> str:
         """

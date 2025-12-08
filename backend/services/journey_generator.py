@@ -36,10 +36,11 @@ class JourneyGenerator:
             collection_name: ChromaDB collection name
             use_rag: Use LlamaIndex RAG engine (default: True)
             temperature: Temperature for journey generation (0.0-1.0)
-            model_name: LLM model to use ("claude", "hf-k2", "hf-k2-openai")
+            model_name: LLM model to use ("claude", "hf-k2-openai")
         """
         self.use_rag = use_rag
         self.temperature = temperature
+        self.model_name = model_name
         
         if use_rag:
             # Use LlamaIndex-powered RAG engine
@@ -58,10 +59,10 @@ class JourneyGenerator:
             self.rag_engine = None
         
         # Initialize intent extractor
-        self.intent_extractor = IntentExtractor()
-        
+        self.intent_extractor = IntentExtractor(model_name=model_name)
+
         # Initialize prompt chain
-        self.prompt_chain = PromptChain(temperature=temperature)
+        self.prompt_chain = PromptChain(temperature=temperature, model_name=model_name)
 
         # Use selected model for journey generation
         self.llm = get_llm_service(model_name)
@@ -120,7 +121,8 @@ class JourneyGenerator:
             'enhanced_context': {
                 'docs': docs,  # Store the enhanced RAG docs for step detail
                 'query': user_query,
-                'intent': intent
+                'intent': intent,
+                'model': self.model_name  # Store selected model for use in step details/chat
             }
         }
     

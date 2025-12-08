@@ -38,6 +38,7 @@ const ChatNode = ({ data, id, selected }: NodeProps<ChatNodeData>) => {
             doc_paths: data.step.doc_paths,
             max_length: 3000,
             enhanced_context: data.enhancedContext,
+            model: data.enhancedContext?.model || "claude",
           }),
         });
 
@@ -87,7 +88,7 @@ const ChatNode = ({ data, id, selected }: NodeProps<ChatNodeData>) => {
             scrollbarColor: '#3a3a3a #1e1e1e',
           }}
         >
-          <StepChat step={data.step} summaries={summaries} />
+          <StepChat step={data.step} summaries={summaries} enhancedContext={data.enhancedContext} />
         </div>
       </div>
     </ResizableWrapper>

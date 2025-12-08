@@ -3,22 +3,23 @@ Step Q&A service
 Answers questions about specific steps using context from summaries
 Uses Claude Sonnet 4.5
 """
-from services.llm_service import ClaudeService
+from services.llm_service import get_llm_service
 from dotenv import load_dotenv
 
 load_dotenv()
 
 
 class StepQAService:
-    def __init__(self, temperature: float = 0.7):
+    def __init__(self, temperature: float = 0.7, model_name: str = "claude"):
         """
-        Initialize Q&A service with Claude
-        
+        Initialize Q&A service
+
         Args:
             temperature: Temperature for Q&A (higher = more conversational)
+            model_name: LLM model to use ("claude", "hf-k2-openai")
         """
-        # Use Claude for Q&A
-        self.llm = ClaudeService()
+        # Use selected model for Q&A
+        self.llm = get_llm_service(model_name)
         self.temperature = temperature
     
     def answer_question(

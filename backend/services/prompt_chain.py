@@ -4,26 +4,27 @@ Manages multi-step prompt workflows with context optimization
 Uses Claude Sonnet 4.5
 """
 from typing import Dict, List, Optional, Any
-from services.llm_service import ClaudeService
+from services.llm_service import get_llm_service
 from dotenv import load_dotenv
 
 load_dotenv()
 
 
 class PromptChain:
-    def __init__(self, temperature: float = 0.7, max_tokens: int = 4000):
+    def __init__(self, temperature: float = 0.7, max_tokens: int = 4000, model_name: str = "claude"):
         """
         Initialize prompt chain
-        
+
         Args:
             temperature: Default temperature for generation (0.0-1.0)
             max_tokens: Maximum tokens per response
+            model_name: LLM model to use ("claude", "hf-k2-openai")
         """
         self.default_temperature = temperature
         self.default_max_tokens = max_tokens
-        
-        # Use Claude for prompt chaining
-        self.llm = ClaudeService()
+
+        # Use selected model for prompt chaining
+        self.llm = get_llm_service(model_name)
     
     def execute_chain(
         self,

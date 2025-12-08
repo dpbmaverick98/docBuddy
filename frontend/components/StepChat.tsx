@@ -18,9 +18,10 @@ interface DocSummary {
 interface StepChatProps {
   step: JourneyStep;
   summaries: DocSummary[];
+  enhancedContext?: any;
 }
 
-export default function StepChat({ step, summaries }: StepChatProps) {
+export default function StepChat({ step, summaries, enhancedContext }: StepChatProps) {
   const [messages, setMessages] = useState<Array<{ role: "user" | "assistant"; content: string }>>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -61,6 +62,7 @@ export default function StepChat({ step, summaries }: StepChatProps) {
           step_description: step.description,
           context: context,
           question: userMessage,
+          model: enhancedContext?.model || "claude",
         }),
       });
 

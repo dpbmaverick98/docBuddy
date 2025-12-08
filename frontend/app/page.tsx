@@ -29,6 +29,12 @@ export interface Journey {
   steps: JourneyStep[];
   total_steps: number;
   estimated_time: string;
+  enhanced_context?: {
+    docs?: any[];
+    query?: string;
+    intent?: any;
+    model?: string;
+  };
 }
 
 export default function Home() {

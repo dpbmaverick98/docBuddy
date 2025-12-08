@@ -6,15 +6,20 @@ Uses Claude Sonnet 4.5
 import json
 from typing import Dict, Optional
 from dotenv import load_dotenv
-from services.llm_service import ClaudeService
+from services.llm_service import get_llm_service
 
 load_dotenv()
 
 
 class IntentExtractor:
-    def __init__(self):
-        """Initialize intent extractor with Claude"""
-        self.llm = ClaudeService()
+    def __init__(self, model_name: str = "claude"):
+        """
+        Initialize intent extractor
+
+        Args:
+            model_name: LLM model to use ("claude", "hf-k2-openai")
+        """
+        self.llm = get_llm_service(model_name)
     
     def extract_intent(self, user_query: str) -> Dict:
         """

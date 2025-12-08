@@ -151,9 +151,10 @@ export default function JourneyCanvas({ journey, enhancedContext }: JourneyCanva
       zIndex: zIndexCounter.current,
       width: 500,
       height: 600,
-      data: { 
-        step, 
-        onClose
+      data: {
+        step,
+        onClose,
+        enhancedContext
       },
     };
 

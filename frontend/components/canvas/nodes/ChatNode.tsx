@@ -16,6 +16,7 @@ interface DocSummary {
 interface ChatNodeData {
   step: JourneyStep;
   onClose: (nodeId: string) => void;
+  enhancedContext?: any;
 }
 
 const ChatNode = ({ data, id, selected }: NodeProps<ChatNodeData>) => {
@@ -36,6 +37,7 @@ const ChatNode = ({ data, id, selected }: NodeProps<ChatNodeData>) => {
           body: JSON.stringify({
             doc_paths: data.step.doc_paths,
             max_length: 3000,
+            enhanced_context: data.enhancedContext,
           }),
         });
 

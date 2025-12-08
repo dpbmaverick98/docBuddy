@@ -104,23 +104,15 @@ export default function JourneyCanvas({ journey, enhancedContext }: JourneyCanva
             doc_url: doc.doc_url,
             heading: doc.heading,
             content_preview: doc.content?.substring(0, 200) + (doc.content?.length > 200 ? '...' : ''),
-            distance: doc.distance,
-            score: doc.score || doc.relevance_score
+            relevance_score: doc.score || doc.relevance_score || (1 - (doc.distance || 1))
           })) || [],
-          total_docs_retrieved: enhancedContext.docs?.length || 0,
-          search_strategy: 'cohere_embeddings + multi_query_expansion + reranking + compression'
+          total_docs_retrieved: enhancedContext.docs?.length || 0
         } : undefined,
-        // Metadata about the generation process
+        // Basic metadata
         metadata: {
           generated_at: new Date().toISOString(),
-          optimizations_applied: [
-            'intent_extraction',
-            'query_expansion',
-            'vector_search',
-            'cohere_reranking',
-            'contextual_compression'
-          ],
-          model_used: 'claude-3-5-sonnet-20241022'
+          docs_analyzed: enhancedContext?.docs?.length || 0,
+          search_method: 'semantic_search'
         }
       };
 

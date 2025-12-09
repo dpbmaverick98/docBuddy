@@ -43,7 +43,7 @@ const Icons = {
   Privy: () => (
     <div className="w-3.5 h-3.5 relative overflow-hidden rounded-sm">
         <img 
-            src="https://drive.google.com/uc?export=view&id=16UG22q05W4GDc9Vskk8lfjcgol1dmTyE" 
+            src="/privy-logo.png" 
             alt="Privy Logo" 
             className="w-full h-full object-contain"
         />

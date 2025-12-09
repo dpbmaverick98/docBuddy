@@ -38,6 +38,34 @@ export interface Journey {
   };
 }
 
+// --- ICONS ---
+const Icons = {
+  Privy: () => (
+    <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5">
+      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/>
+    </svg>
+  ), // Placeholder "P" style or Lock
+  Stripe: () => (
+    <svg viewBox="0 0 40 40" fill="currentColor" className="w-3.5 h-3.5">
+       <path d="M35.1 23.3c0-2.7-2-5-6-5-6.5 0-6.1-4-6.1-5.3 0-1.7 1.6-2.9 4.3-2.9 3.2 0 6.4 1 6.4 1l1.1-5.4s-3.2-1-6.7-1c-7.3 0-11 3.7-11 9.4 0 7.8 7.3 8.3 8.9 10 1.1 1.2.7 3.2-2.1 3.2-2.3 0-7.3-1.7-7.3-1.7L15 31.4s4.8 2.2 8.7 2.2c7.6 0 11.4-3.6 11.4-9.3v-1z"/>
+    </svg>
+  ),
+  Supabase: () => (
+    <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5">
+        <path d="M21.362 9.354H10.034L13.513 0H2.638C1.526 0 .638.868.638 1.95v11.751h11.328l-3.48 9.354h10.876c1.112 0 2.001-.868 2.001-1.95V11.304c0-1.082-.889-1.95-2.001-1.95z"/>
+    </svg>
+  ),
+  Figma: () => (
+    <svg viewBox="0 0 38 57" fill="none" className="w-3.5 h-3.5">
+        <path fill="#1ABCFE" d="M19 28.5a9.5 9.5 0 1 1 19 0 9.5 9.5 0 0 1-19 0Z"/>
+        <path fill="#0ACF83" d="M0 47.5a9.5 9.5 0 0 1 9.5-9.5H19v9.5a9.5 9.5 0 1 1-19 0Z"/>
+        <path fill="#FF7262" d="M19 0v19h9.5a9.5 9.5 0 1 0 0-19H19Z"/>
+        <path fill="#F24E1E" d="M0 9.5a9.5 9.5 0 0 0 9.5 9.5H19V0H9.5A9.5 9.5 0 0 0 0 9.5Z"/>
+        <path fill="#A259FF" d="M0 28.5a9.5 9.5 0 0 0 9.5 9.5H19V19H9.5A9.5 9.5 0 0 0 0 28.5Z"/>
+    </svg>
+  )
+};
+
 // --- MOCK REACT FLOW BACKGROUND ---
 const ReactFlowCanvas = ({ active, journey, loading, selectedModel }: { active: boolean, journey: Journey | null, loading: boolean, selectedModel: string }) => {
   return (
@@ -51,47 +79,6 @@ const ReactFlowCanvas = ({ active, journey, loading, selectedModel }: { active: 
             backgroundSize: '40px 40px'
         }}
       ></div>
-
-      {/* Mock Nodes for Preview (when not active) */}
-      <AnimatePresence>
-        {!active && (
-          <motion.div 
-            initial={{ opacity: 0 }} 
-            animate={{ opacity: 1 }} 
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.5 }}
-            className="absolute inset-0 pointer-events-none"
-          >
-             {/* Mock Node 1 */}
-            <div className="absolute top-1/3 left-1/4 p-4 rounded-xl border border-[#3a3a3a] bg-[#252525] shadow-2xl w-64 opacity-60">
-                <div className="flex items-center gap-2 mb-2 border-b border-[#3a3a3a] pb-2">
-                    <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                    <span className="text-xs font-mono text-[#858585]">Initialize</span>
-                </div>
-                <div className="space-y-2">
-                    <div className="h-2 w-3/4 bg-[#3a3a3a] rounded"></div>
-                    <div className="h-2 w-1/2 bg-[#3a3a3a] rounded"></div>
-                </div>
-            </div>
-
-            {/* Mock Node 2 */}
-            <div className="absolute top-1/2 left-1/2 p-4 rounded-xl border border-blue-500/30 bg-[#252525] shadow-2xl w-80 opacity-60">
-                 <div className="flex items-center gap-2 mb-2 border-b border-[#3a3a3a] pb-2">
-                    <div className="w-3 h-3 rounded-full bg-purple-500"></div>
-                    <span className="text-xs font-mono text-[#858585]">Auth Config</span>
-                </div>
-                <div className="text-xs text-[#d4d4d4] font-mono">
-                    const config = useConfig();
-                </div>
-            </div>
-            
-            {/* Mock Connection Line */}
-            <svg className="absolute inset-0 pointer-events-none">
-                <path d="M 400 300 Q 550 300 650 400" stroke="#3b82f6" strokeWidth="2" fill="none" strokeDasharray="5,5" className="opacity-30" />
-            </svg>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* Real Journey Canvas when available */}
       {active && (journey || loading) && (
@@ -181,10 +168,10 @@ export default function Home() {
 
   // Floating icons data
   const DOCS_ICONS = [
-    { name: 'Privy', id: 'privy', icon: <FileText size={14} />, color: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' },
-    { name: 'Stripe', id: 'stripe', icon: <Code2 size={14} />, color: 'bg-violet-500/10 text-violet-400 border-violet-500/20' },
-    { name: 'Supabase', id: 'supabase', icon: <Database size={14} />, color: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' },
-    { name: 'Figma', id: 'figma', icon: <Box size={14} />, color: 'bg-pink-500/10 text-pink-400 border-pink-500/20' },
+    { name: 'Privy', id: 'privy', icon: <Icons.Privy /> },
+    { name: 'Stripe', id: 'stripe', icon: <Icons.Stripe /> },
+    { name: 'Supabase', id: 'supabase', icon: <Icons.Supabase /> },
+    { name: 'Figma', id: 'figma', icon: <Icons.Figma /> },
   ];
 
   // Fetch available projects from backend
@@ -298,7 +285,7 @@ export default function Home() {
               </h1>
               
               <p className="text-lg text-[#858585] max-w-xl mx-auto leading-relaxed mb-4">
-                Create integrations, generate flows, and chat with documentation instantly.
+                Start building with user journey in minutes.
               </p>
             </motion.div>
           )}
@@ -404,7 +391,7 @@ export default function Home() {
                     whileHover={{ scale: 1.05, y: -2 }}
                     whileTap={{ scale: 0.95 }}
                     onClick={() => handleDocClick(doc.id, doc.name)}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${doc.color} bg-opacity-10 hover:bg-opacity-20`}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border border-[#3a3a3a] bg-[#252525] hover:bg-[#3a3a3a] hover:border-[#4a4a4a] text-[#d4d4d4] transition-all"
                   >
                     {doc.icon}
                     {doc.name}

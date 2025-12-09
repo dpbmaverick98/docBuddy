@@ -66,6 +66,14 @@ const CodeBlock = ({ inline, className, children, ...props }: any) => {
 export default function StepDetail({ step, onClose, enhancedContext, selectedModel }: StepDetailProps) {
   const [summaries, setSummaries] = useState<DocSummary[]>([]);
   const [loadingSummaries, setLoadingSummaries] = useState(true);
+  const [copiedDetails, setCopiedDetails] = useState(false);
+
+  const handleCopyDetails = () => {
+    const textToCopy = summaries.map(s => s.summary).join("\n\n");
+    navigator.clipboard.writeText(textToCopy);
+    setCopiedDetails(true);
+    setTimeout(() => setCopiedDetails(false), 2000);
+  };
 
   useEffect(() => {
     // Fetch summaries for this step's docs
@@ -129,7 +137,16 @@ export default function StepDetail({ step, onClose, enhancedContext, selectedMod
         </button>
       </div>
 
-      <div className="bg-[#252525] rounded-lg p-4 mb-4 border border-[#3a3a3a]">
+      <div className="bg-[#252525] rounded-lg p-4 mb-4 border border-[#3a3a3a] relative group">
+        {!loadingSummaries && summaries.length > 0 && (
+          <button
+            onClick={handleCopyDetails}
+            className="absolute right-4 top-4 p-2 rounded-lg bg-[#2d2d2d] text-[#858585] opacity-0 group-hover:opacity-100 transition-all hover:bg-[#3a3a3a] hover:text-[#d4d4d4] z-10"
+            title="Copy details"
+          >
+            {copiedDetails ? <Check size={16} className="text-green-400" /> : <Copy size={16} />}
+          </button>
+        )}
         {loadingSummaries ? (
           <div className="animate-pulse">
             <div className="h-4 bg-[#2d2d2d] rounded w-3/4 mb-2"></div>

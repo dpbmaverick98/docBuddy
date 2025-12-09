@@ -278,7 +278,7 @@ export default function StepDetail({ step, onClose, enhancedContext, selectedMod
               <div className="h-4 bg-[#2d2d2d] rounded w-3/4 mb-2"></div>
               <div className="h-4 bg-[#2d2d2d] rounded w-full"></div>
             </div>
-            <p className="text-xs text-[#858585] mt-2">Loading summaries... This may take 15-30 seconds.</p>
+            <p className="text-xs text-[#858585] mt-2">Loading implementation summary...</p>
           </div>
         ) : error ? (
           <div className="space-y-2">

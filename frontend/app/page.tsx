@@ -41,10 +41,14 @@ export interface Journey {
 // --- ICONS ---
 const Icons = {
   Privy: () => (
-    <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5">
-      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/>
-    </svg>
-  ), // Placeholder "P" style or Lock
+    <div className="w-3.5 h-3.5 relative overflow-hidden rounded-sm">
+        <img 
+            src="https://drive.google.com/uc?export=view&id=16UG22q05W4GDc9Vskk8lfjcgol1dmTyE" 
+            alt="Privy Logo" 
+            className="w-full h-full object-contain"
+        />
+    </div>
+  ),
   Stripe: () => (
     <svg viewBox="0 0 40 40" fill="currentColor" className="w-3.5 h-3.5">
        <path d="M35.1 23.3c0-2.7-2-5-6-5-6.5 0-6.1-4-6.1-5.3 0-1.7 1.6-2.9 4.3-2.9 3.2 0 6.4 1 6.4 1l1.1-5.4s-3.2-1-6.7-1c-7.3 0-11 3.7-11 9.4 0 7.8 7.3 8.3 8.9 10 1.1 1.2.7 3.2-2.1 3.2-2.3 0-7.3-1.7-7.3-1.7L15 31.4s4.8 2.2 8.7 2.2c7.6 0 11.4-3.6 11.4-9.3v-1z"/>

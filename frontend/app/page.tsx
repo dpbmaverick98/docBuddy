@@ -38,13 +38,11 @@ export interface Journey {
   };
 }
 
-// --- MOCK BACKGROUND / CANVAS WRAPPER ---
+// --- MOCK REACT FLOW BACKGROUND ---
 const ReactFlowCanvas = ({ active, journey, loading, selectedModel }: { active: boolean, journey: Journey | null, loading: boolean, selectedModel: string }) => {
   return (
     <div 
-      className={`absolute inset-0 z-0 bg-neutral-950 transition-opacity duration-1000 ${
-        active ? 'opacity-100' : 'opacity-20'
-      }`}
+      className="absolute inset-0 z-0 bg-[#1e1e1e]"
     >
       {/* Grid Pattern */}
       <div className="w-full h-full opacity-20 pointer-events-none"
@@ -53,6 +51,47 @@ const ReactFlowCanvas = ({ active, journey, loading, selectedModel }: { active: 
             backgroundSize: '40px 40px'
         }}
       ></div>
+
+      {/* Mock Nodes for Preview (when not active) */}
+      <AnimatePresence>
+        {!active && (
+          <motion.div 
+            initial={{ opacity: 0 }} 
+            animate={{ opacity: 1 }} 
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.5 }}
+            className="absolute inset-0 pointer-events-none"
+          >
+             {/* Mock Node 1 */}
+            <div className="absolute top-1/3 left-1/4 p-4 rounded-xl border border-[#3a3a3a] bg-[#252525] shadow-2xl w-64 opacity-60">
+                <div className="flex items-center gap-2 mb-2 border-b border-[#3a3a3a] pb-2">
+                    <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                    <span className="text-xs font-mono text-[#858585]">Initialize</span>
+                </div>
+                <div className="space-y-2">
+                    <div className="h-2 w-3/4 bg-[#3a3a3a] rounded"></div>
+                    <div className="h-2 w-1/2 bg-[#3a3a3a] rounded"></div>
+                </div>
+            </div>
+
+            {/* Mock Node 2 */}
+            <div className="absolute top-1/2 left-1/2 p-4 rounded-xl border border-blue-500/30 bg-[#252525] shadow-2xl w-80 opacity-60">
+                 <div className="flex items-center gap-2 mb-2 border-b border-[#3a3a3a] pb-2">
+                    <div className="w-3 h-3 rounded-full bg-purple-500"></div>
+                    <span className="text-xs font-mono text-[#858585]">Auth Config</span>
+                </div>
+                <div className="text-xs text-[#d4d4d4] font-mono">
+                    const config = useConfig();
+                </div>
+            </div>
+            
+            {/* Mock Connection Line */}
+            <svg className="absolute inset-0 pointer-events-none">
+                <path d="M 400 300 Q 550 300 650 400" stroke="#3b82f6" strokeWidth="2" fill="none" strokeDasharray="5,5" className="opacity-30" />
+            </svg>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Real Journey Canvas when available */}
       {active && (journey || loading) && (
@@ -232,32 +271,16 @@ export default function Home() {
   };
 
   return (
-    <div className="relative w-full h-screen bg-neutral-950 text-white overflow-hidden font-sans selection:bg-blue-500/30">
+    <div className="relative w-full h-screen bg-[#1e1e1e] text-[#d4d4d4] overflow-hidden font-sans selection:bg-blue-500/30">
       
       {/* 1. BACKGROUND LAYER (Canvas) */}
       <ReactFlowCanvas active={hasStarted} journey={journey} loading={loading} selectedModel={selectedModel} />
 
-      {/* 2. ATMOSPHERE LAYER (Glows & Effects) */}
-      {/* Bolt-like bottom horizon glow */}
-      <motion.div 
-        animate={{ opacity: hasStarted ? 0 : 1 }}
-        transition={{ duration: 1 }}
-        className="absolute bottom-0 left-0 w-full h-[60vh] bg-gradient-to-t from-blue-600/10 via-transparent to-transparent pointer-events-none z-0" 
-      />
-      
-      {/* The "Planet" Arc */}
-      <motion.div 
-        animate={{ 
-            opacity: hasStarted ? 0 : 1,
-            y: hasStarted ? 200 : 0
-        }}
-        transition={{ duration: 1 }}
-        className="absolute -bottom-[40vw] left-1/2 -translate-x-1/2 w-[120vw] h-[60vw] rounded-[100%] border-t border-blue-500/20 bg-blue-500/5 blur-[60px] pointer-events-none z-0" 
-      />
+      {/* 2. ATMOSPHERE LAYER (Removed as per request) */}
 
       {/* 3. INTERACTIVE UI LAYER */}
       {/* Centering the main content block vertically */}
-      <div className={`relative z-10 w-full h-full flex flex-col items-center pointer-events-none ${hasStarted ? 'justify-end pb-8' : 'justify-center'}`}>
+      <div className={`relative z-10 w-full h-full flex flex-col items-center pointer-events-none ${hasStarted ? 'justify-end pb-4' : 'justify-center'}`}>
         
         {/* HERO SECTION - Fades out on start */}
         <AnimatePresence>
@@ -270,11 +293,11 @@ export default function Home() {
               className="text-center pointer-events-auto z-20 flex flex-col items-center mb-10"
             >
               
-              <h1 className="text-5xl md:text-7xl font-bold tracking-tight mb-4 text-white">
+              <h1 className="text-5xl md:text-7xl font-bold tracking-tight mb-4 text-[#d4d4d4]">
                 DocsBuddy <span className="text-blue-500">-</span> Your AI DevRel
               </h1>
               
-              <p className="text-lg text-neutral-400 max-w-xl mx-auto leading-relaxed mb-4">
+              <p className="text-lg text-[#858585] max-w-xl mx-auto leading-relaxed mb-4">
                 Create integrations, generate flows, and chat with documentation instantly.
               </p>
             </motion.div>
@@ -284,7 +307,7 @@ export default function Home() {
         {/* INPUT BAR CONTAINER - Morphs position */}
         <motion.div
           layout 
-          className="pointer-events-auto w-full max-w-3xl px-6"
+          className={`pointer-events-auto w-full px-6 transition-all duration-500 ${hasStarted ? 'max-w-xl opacity-80 hover:opacity-100' : 'max-w-3xl'}`}
           transition={{ 
             type: 'spring', 
             damping: 30, 
@@ -292,53 +315,67 @@ export default function Home() {
           }}
         >
           <form onSubmit={handleSubmit} className="relative group w-full">
-            {/* Glowing Border Gradient */}
-            <div className={`absolute -inset-0.5 bg-gradient-to-r from-blue-500 via-purple-500 to-blue-500 rounded-xl opacity-30 group-hover:opacity-60 transition duration-500 blur-sm ${hasStarted ? 'opacity-20' : ''}`}></div>
+            {/* Glowing Border Gradient - Only show when not started */}
+            {!hasStarted && (
+                <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-500 via-purple-500 to-blue-500 rounded-xl opacity-30 group-hover:opacity-60 transition duration-500 blur-sm"></div>
+            )}
             
             {/* Main Input Box */}
-            <div className="relative flex flex-col bg-neutral-950/90 border border-neutral-800/50 rounded-xl shadow-2xl backdrop-blur-xl overflow-hidden">
-               <textarea
-                value={inputValue}
-                onChange={(e) => {
-                    setInputValue(e.target.value);
-                }}
-                placeholder={`How do I integrate ${selectedProject.charAt(0).toUpperCase() + selectedProject.slice(1)}?`}
-                className="w-full bg-transparent text-white placeholder-neutral-500 text-lg px-5 py-4 focus:outline-none resize-none"
-                rows={hasStarted ? 1 : 2}
-                onKeyDown={(e) => {
-                  if(e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault(); 
-                    handleSubmit(e);
-                  }
-                }}
-              />
+            <div className={`relative flex flex-col bg-[#252525]/90 border border-[#3a3a3a] rounded-xl shadow-2xl backdrop-blur-xl overflow-hidden transition-all duration-500 ${hasStarted ? 'scale-90' : ''}`}>
+               {/* Text Area - Hide when started */}
+               {!hasStarted && (
+                   <textarea
+                    value={inputValue}
+                    onChange={(e) => {
+                        setInputValue(e.target.value);
+                    }}
+                    placeholder={`How do I integrate ${selectedProject.charAt(0).toUpperCase() + selectedProject.slice(1)}?`}
+                    className="w-full bg-transparent text-[#d4d4d4] placeholder-[#5a5a5a] text-lg px-5 py-4 focus:outline-none resize-none"
+                    rows={hasStarted ? 1 : 2}
+                    onKeyDown={(e) => {
+                    if(e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault(); 
+                        handleSubmit(e);
+                    }
+                    }}
+                />
+               )}
               
               {/* Footer inside Input (Models & Button) */}
-              <div className="flex items-center justify-between px-4 pb-3 pt-1">
+              <div className={`flex items-center justify-between px-4 ${hasStarted ? 'py-2' : 'pb-3 pt-1'}`}>
                 <div className="flex items-center gap-2">
                     {/* ModelSelector component */}
                     <ModelSelector selected={selectedModel} setSelected={setSelectedModel} />
                     
                     {/* Mock Context Selector */}
-                    <button type="button" className="flex items-center gap-1.5 px-2 py-1 rounded-md hover:bg-neutral-800 transition-colors text-xs text-neutral-400 font-medium">
+                    <button type="button" className="flex items-center gap-1.5 px-2 py-1 rounded-md hover:bg-[#2d2d2d] transition-colors text-xs text-[#858585] font-medium border border-transparent hover:border-[#3a3a3a]">
                         <Layers size={12} className="text-blue-400" />
                         <span>{selectedProject.charAt(0).toUpperCase() + selectedProject.slice(1)} Docs</span>
                     </button>
                 </div>
 
                 <div className="flex items-center gap-2">
-                    {/* Character count / hints could go here */}
+                    {/* Start Button - Text changes when started */}
                     <button 
                         type="submit"
                         className={`p-2 rounded-lg transition-all duration-200 flex items-center gap-2 text-sm font-medium ${
-                            inputValue.trim() 
+                            (inputValue.trim() || hasStarted)
                             ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-[0_0_15px_rgba(37,99,235,0.5)]' 
-                            : 'bg-neutral-800 text-neutral-500 cursor-not-allowed'
+                            : 'bg-[#2d2d2d] text-[#5a5a5a] cursor-not-allowed'
                         }`}
-                        disabled={!inputValue.trim()}
+                        disabled={!inputValue.trim() && !hasStarted}
+                        onClick={(e) => {
+                            if (hasStarted) {
+                                // If already started, maybe reset or do nothing (since user wants to see the journey)
+                                // For now, let's just let it be a status indicator or "New" button
+                                e.preventDefault();
+                                setHasStarted(false);
+                                setJourney(null);
+                                setInputValue("");
+                            }
+                        }}
                     >
-                        {/* Always show the arrow for consistency */}
-                        {inputValue.trim() ? <span>Start Building</span> : <span>Enter Query</span>}
+                        {hasStarted ? <span>New Journey</span> : (inputValue.trim() ? <span>Start Building</span> : <span>Enter Query</span>)}
                         <ArrowRight size={16} /> 
                     </button>
                 </div>
@@ -360,7 +397,7 @@ export default function Home() {
                 exit={{ opacity: 0, y: 10 }}
                 className="flex flex-wrap items-center justify-center gap-3 mt-6"
               >
-                <span className="text-neutral-500 text-xs uppercase tracking-wider font-semibold mr-2">Import Docs:</span>
+                <span className="text-[#5a5a5a] text-xs uppercase tracking-wider font-semibold mr-2">Import Docs:</span>
                 {DOCS_ICONS.map((doc, idx) => (
                   <motion.button 
                     key={doc.name}
@@ -379,19 +416,7 @@ export default function Home() {
         </motion.div>
       </div>
 
-      {/* 4. OVERLAY CONTROLS (Top Right - Optional) */}
-      <div className="absolute top-6 right-6 z-50 flex items-center gap-4">
-        {hasStarted && (
-             <button onClick={() => {
-                setHasStarted(false);
-                setJourney(null);
-                setInputValue("");
-             }} className="text-xs text-neutral-500 hover:text-white transition-colors underline bg-neutral-900/50 px-3 py-1.5 rounded-full border border-neutral-800">
-                Reset Demo
-             </button>
-        )}
-      </div>
-
+      {/* 4. OVERLAY CONTROLS (Removed Reset Demo Button) */}
     </div>
   );
 }

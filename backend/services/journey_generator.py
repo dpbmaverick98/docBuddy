@@ -384,12 +384,12 @@ Rules:
                         valid_paths.append(corresponding_path)
 
             # Always update the step with whatever valid paths we found (could be empty)
-            step['doc_paths'] = valid_paths
-            step['doc_urls'] = valid_urls
+                step['doc_paths'] = valid_paths
+                step['doc_urls'] = valid_urls
 
             # CRITICAL FIX: Always keep the step, even if no docs are found.
             # This prevents "missing steps" (e.g. seeing 1, 3, 4 but missing 2).
-            validated.append(step)
+                validated.append(step)
 
             if not valid_paths and not valid_urls:
                 print(f"  ⚠️  Step '{step.get('title')}' has no verified doc links, but keeping it in journey.")

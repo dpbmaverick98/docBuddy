@@ -312,7 +312,7 @@ export default function Home() {
             >
               
               <h1 className="text-5xl md:text-7xl font-bold tracking-tight mb-4 text-[#d4d4d4]">
-                DocsBuddy <span className="text-blue-500">-</span> Your AI DevRel
+                docsBuddy <span className="text-blue-500">-</span> Your AI DevRel
               </h1>
               
               <p className="text-lg text-[#858585] max-w-xl mx-auto leading-relaxed mb-4">

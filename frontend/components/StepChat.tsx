@@ -30,6 +30,8 @@ export default function StepChat({ step, summaries, enhancedContext }: StepChatP
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const timeoutIdRef = useRef<NodeJS.Timeout | null>(null);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -51,11 +53,30 @@ export default function StepChat({ step, summaries, enhancedContext }: StepChatP
     setMessages((prev) => [...prev, { role: "user", content: userMessage }]);
     setLoading(true);
 
+    // Cancel any previous request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    if (timeoutIdRef.current) {
+      clearTimeout(timeoutIdRef.current);
+    }
+
+    // Create new abort controller
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+
     try {
       const selectedModel = enhancedContext?.model || "claude";
 
       // Combine summaries for context
       const context = summaries.map(s => `${s.title || s.heading}: ${s.summary}`).join("\n\n");
+
+      // Set up timeout (2 minutes)
+      const timeoutId = setTimeout(() => {
+        console.log("⏱️ StepChat: Request timeout after 120s");
+        abortController.abort();
+      }, 120000);
+      timeoutIdRef.current = timeoutId;
 
       // Use direct URL
       const response = await fetch(`${API_BASE_URL}/journey/ask-step`, {
@@ -70,7 +91,12 @@ export default function StepChat({ step, summaries, enhancedContext }: StepChatP
           question: userMessage,
           model: selectedModel,
         }),
+        signal: abortController.signal,
       });
+
+      // Clear timeout
+      clearTimeout(timeoutId);
+      timeoutIdRef.current = null;
 
       if (!response.ok) {
         throw new Error("Failed to get answer");
@@ -78,15 +104,43 @@ export default function StepChat({ step, summaries, enhancedContext }: StepChatP
 
       const data = await response.json();
       setMessages((prev) => [...prev, { role: "assistant", content: data.answer }]);
-    } catch (error) {
+    } catch (error: any) {
+      // Clear timeout
+      if (timeoutIdRef.current) {
+        clearTimeout(timeoutIdRef.current);
+        timeoutIdRef.current = null;
+      }
+
+      if (error.name === 'AbortError') {
+        console.log("🚫 StepChat: Request aborted");
+        setMessages((prev) => [
+          ...prev,
+          { role: "assistant", content: "Request timed out. Please try again." },
+        ]);
+        return;
+      }
+
       setMessages((prev) => [
         ...prev,
         { role: "assistant", content: "Sorry, I couldn't process your question. Please try again." },
       ]);
     } finally {
       setLoading(false);
+      abortControllerRef.current = null;
     }
   };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      if (timeoutIdRef.current) {
+        clearTimeout(timeoutIdRef.current);
+      }
+    };
+  }, []);
 
   return (
     <div className="space-y-4 h-full flex flex-col">

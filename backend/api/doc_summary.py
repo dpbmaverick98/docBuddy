@@ -5,6 +5,8 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional, Dict
 from services.doc_summarizer import DocSummarizer
+import time
+import uuid
 
 router = APIRouter(prefix="/api/docs", tags=["docs"])
 
@@ -36,7 +38,13 @@ async def get_doc_summaries(request: SummaryRequest):
             "model": "hf-k2-openai"
         }
     """
+    request_id = str(uuid.uuid4())[:8]
+    start_time = time.time()
+    
     try:
+        print(f"📥 [Request {request_id}] Received summary request for {len(request.doc_paths)} docs, model: {request.model}")
+        print(f"📥 [Request {request_id}] Step: {request.step_title}")
+        
         summarizer = DocSummarizer(model_name=request.model)
         summaries = summarizer.get_summaries(
             doc_paths=request.doc_paths,
@@ -47,8 +55,13 @@ async def get_doc_summaries(request: SummaryRequest):
             enhanced_context=request.enhanced_context
         )
         
+        elapsed = time.time() - start_time
+        print(f"✅ [Request {request_id}] Generated {len(summaries)} summaries in {elapsed:.2f}s")
+        
         return SummaryResponse(summaries=summaries)
         
     except Exception as e:
+        elapsed = time.time() - start_time
+        print(f"❌ [Request {request_id}] Error after {elapsed:.2f}s: {e}")
         raise HTTPException(status_code=500, detail=f"Error generating summaries: {str(e)}")
 

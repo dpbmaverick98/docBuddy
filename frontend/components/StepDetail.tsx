@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
@@ -69,7 +69,13 @@ const CodeBlock = ({ inline, className, children, ...props }: any) => {
 export default function StepDetail({ step, onClose, enhancedContext, selectedModel }: StepDetailProps) {
   const [summaries, setSummaries] = useState<DocSummary[]>([]);
   const [loadingSummaries, setLoadingSummaries] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [copiedDetails, setCopiedDetails] = useState(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const requestIdRef = useRef(0);
+  const lastRequestKeyRef = useRef<string>("");
+  const timeoutIdRef = useRef<NodeJS.Timeout | null>(null);
+  const isFetchingRef = useRef(false); // Track if we're currently fetching
 
   const handleCopyDetails = () => {
     const textToCopy = summaries.map(s => s.summary).join("\n\n");
@@ -78,21 +84,62 @@ export default function StepDetail({ step, onClose, enhancedContext, selectedMod
     setTimeout(() => setCopiedDetails(false), 2000);
   };
 
+  // Create a stable key for this request based on actual values
+  const requestKey = useMemo(() => {
+    const docPathsKey = step.doc_paths.sort().join(',');
+    const modelKey = selectedModel || enhancedContext?.model || "claude";
+    return `${docPathsKey}|${modelKey}|${step.step_number}`;
+  }, [step.doc_paths, step.step_number, selectedModel, enhancedContext?.model]);
+
   useEffect(() => {
+    // Skip if we're already fetching the same request (prevents duplicate calls from React StrictMode)
+    if (requestKey === lastRequestKeyRef.current && isFetchingRef.current) {
+      console.log("⏭️ Already fetching request with key:", requestKey);
+      return;
+    }
+
+    // If it's a different request key, cancel the previous one
+    if (requestKey !== lastRequestKeyRef.current && abortControllerRef.current) {
+      console.log("🔄 New request key, aborting previous request");
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+
+    // Update the last request key
+    lastRequestKeyRef.current = requestKey;
+
+    // Cancel any previous timeout
+    if (timeoutIdRef.current) {
+      clearTimeout(timeoutIdRef.current);
+      timeoutIdRef.current = null;
+    }
+
+    // Create new abort controller for this request
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+    
+    // Increment request ID to track the latest request
+    const currentRequestId = ++requestIdRef.current;
+
     // Fetch summaries for this step's docs
     const fetchSummaries = async () => {
       if (step.doc_paths.length === 0) {
         setLoadingSummaries(false);
+        isFetchingRef.current = false;
         return;
       }
 
       // Use selectedModel prop (captured when expand was clicked) as primary source
       // Fallback to enhancedContext.model, then default to "claude"
       const modelToUse = selectedModel || enhancedContext?.model || "claude";
-      console.log("📄 StepDetail fetching summaries with model:", modelToUse, "selectedModel prop:", selectedModel, "enhancedContext.model:", enhancedContext?.model);
+      console.log(`📄 [Request ${currentRequestId}] StepDetail fetching summaries with model:`, modelToUse, "key:", requestKey);
 
       try {
+        isFetchingRef.current = true; // Mark as fetching
         setLoadingSummaries(true);
+        setError(null); // Clear any previous errors
+        setSummaries([]); // Clear previous summaries to avoid showing stale data
+        
         const requestBody = {
           doc_paths: step.doc_paths,
           max_length: 3000,
@@ -102,30 +149,104 @@ export default function StepDetail({ step, onClose, enhancedContext, selectedMod
           enhanced_context: enhancedContext,
           model: modelToUse,
         };
-        console.log("📤 StepDetail sending request:", requestBody);
+        console.log(`📤 [Request ${currentRequestId}] StepDetail sending request:`, requestBody);
 
-        // Use direct URL
+        // Set up timeout (2 minutes - same as journey generation)
+        const timeoutId = setTimeout(() => {
+          console.log(`⏱️ [Request ${currentRequestId}] Request timeout after 120s`);
+          abortController.abort();
+        }, 120000); // 2 minute timeout
+        timeoutIdRef.current = timeoutId;
+
+        // Use direct URL with abort signal
         const response = await fetch(`${API_BASE_URL}/docs/summaries`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
           body: JSON.stringify(requestBody),
+          signal: abortController.signal, // Add abort signal
         });
+
+        // Clear timeout since we got a response
+        clearTimeout(timeoutId);
+        timeoutIdRef.current = null;
+
+        // Check if this is still the latest request
+        if (currentRequestId !== requestIdRef.current) {
+          console.log(`⚠️ [Request ${currentRequestId}] Ignoring stale response`);
+          return;
+        }
 
         if (response.ok) {
           const data = await response.json();
-          setSummaries(data.summaries || []);
+          console.log(`✅ [Request ${currentRequestId}] Received summaries:`, data.summaries?.length || 0);
+          
+          // Double-check this is still the latest request before updating state
+          if (currentRequestId === requestIdRef.current) {
+            setSummaries(data.summaries || []);
+            setError(null);
+          }
+        } else {
+          const errorText = await response.text().catch(() => `Status ${response.status}`);
+          console.error(`❌ [Request ${currentRequestId}] Response not OK:`, response.status, errorText);
+          if (currentRequestId === requestIdRef.current) {
+            setError(`Failed to load summaries: ${response.status} ${response.statusText}`);
+          }
         }
-      } catch (error) {
-        console.error("Error fetching summaries:", error);
+      } catch (error: any) {
+        // Clear timeout if error occurred
+        if (timeoutIdRef.current) {
+          clearTimeout(timeoutIdRef.current);
+          timeoutIdRef.current = null;
+        }
+
+        // Ignore abort errors (they're expected for timeouts and cancellations)
+        if (error.name === 'AbortError') {
+          console.log(`🚫 [Request ${currentRequestId}] Request aborted`);
+          // Only show timeout error if this is still the latest request
+          if (currentRequestId === requestIdRef.current) {
+            // Don't set error if it was aborted due to a new request
+            if (requestKey === lastRequestKeyRef.current) {
+              setError("Request timed out. The backend is taking longer than expected. Please try again.");
+            }
+          }
+          return;
+        }
+        
+        // Only log/update if this is still the latest request
+        if (currentRequestId === requestIdRef.current) {
+          console.error(`❌ [Request ${currentRequestId}] Error fetching summaries:`, error);
+          setError(error.message || "Failed to load summaries. Please try again.");
+        }
       } finally {
-        setLoadingSummaries(false);
+        // Only update loading state if this is still the latest request
+        if (currentRequestId === requestIdRef.current) {
+          setLoadingSummaries(false);
+        }
+        isFetchingRef.current = false; // Mark as not fetching
       }
     };
 
     fetchSummaries();
-  }, [step.doc_paths, selectedModel, enhancedContext]);
+
+    // Cleanup: only abort if this is a different request key
+    return () => {
+      // Only abort if the request key has changed (meaning a new request started)
+      // Don't abort if it's the same key (React StrictMode re-run)
+      if (requestKey !== lastRequestKeyRef.current) {
+        if (abortControllerRef.current) {
+          abortControllerRef.current.abort();
+          abortControllerRef.current = null;
+        }
+        if (timeoutIdRef.current) {
+          clearTimeout(timeoutIdRef.current);
+          timeoutIdRef.current = null;
+        }
+        isFetchingRef.current = false;
+      }
+    };
+  }, [requestKey, step.doc_paths, step.title, step.description, step.step_number, selectedModel, enhancedContext]);
 
   return (
     <div className="space-y-4">
@@ -152,9 +273,28 @@ export default function StepDetail({ step, onClose, enhancedContext, selectedMod
           </button>
         )}
         {loadingSummaries ? (
-          <div className="animate-pulse">
-            <div className="h-4 bg-[#2d2d2d] rounded w-3/4 mb-2"></div>
-            <div className="h-4 bg-[#2d2d2d] rounded w-full"></div>
+          <div className="space-y-2">
+            <div className="animate-pulse">
+              <div className="h-4 bg-[#2d2d2d] rounded w-3/4 mb-2"></div>
+              <div className="h-4 bg-[#2d2d2d] rounded w-full"></div>
+            </div>
+            <p className="text-xs text-[#858585] mt-2">Loading summaries... This may take 15-30 seconds.</p>
+          </div>
+        ) : error ? (
+          <div className="space-y-2">
+            <p className="text-red-400 font-medium">Error loading summaries</p>
+            <p className="text-[#858585] text-sm">{error}</p>
+            <button
+              onClick={() => {
+                // Reset to trigger a new fetch
+                lastRequestKeyRef.current = "";
+                setError(null);
+                setLoadingSummaries(true);
+              }}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm mt-2"
+            >
+              Retry
+            </button>
           </div>
         ) : summaries.length > 0 ? (
           <div className="space-y-3">

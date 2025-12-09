@@ -1,4 +1,4 @@
-import { memo, useState, useEffect } from 'react';
+import { memo, useState, useEffect, useRef } from 'react';
 import { Handle, Position, NodeProps } from 'reactflow';
 import { X } from 'lucide-react';
 import { JourneyStep } from '@/app/page';
@@ -22,14 +22,42 @@ interface ChatNodeData {
 
 const ChatNode = ({ data, id, selected }: NodeProps<ChatNodeData>) => {
   const [summaries, setSummaries] = useState<DocSummary[]>([]);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const lastRequestKeyRef = useRef<string>("");
+  const isFetchingRef = useRef(false);
 
   useEffect(() => {
+    // Create a stable key for this request
+    const requestKey = data.step.doc_paths.sort().join(',') + '|' + (data.selectedModel || data.enhancedContext?.model || "claude");
+
+    // Skip if we're already fetching the same request
+    if (requestKey === lastRequestKeyRef.current && isFetchingRef.current) {
+      console.log("⏭️ ChatNode: Already fetching summaries, skipping duplicate");
+      return;
+    }
+
+    // If it's a different request key, cancel the previous one
+    if (requestKey !== lastRequestKeyRef.current && abortControllerRef.current) {
+      console.log("🔄 ChatNode: New request key, aborting previous request");
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+
+    // Update the last request key
+    lastRequestKeyRef.current = requestKey;
+
     const fetchSummaries = async () => {
       if (data.step.doc_paths.length === 0) {
         return;
       }
 
       try {
+        isFetchingRef.current = true;
+        
+        // Create abort controller
+        const abortController = new AbortController();
+        abortControllerRef.current = abortController;
+
         const response = await fetch("/api/docs/summaries", {
           method: "POST",
           headers: {
@@ -39,21 +67,39 @@ const ChatNode = ({ data, id, selected }: NodeProps<ChatNodeData>) => {
             doc_paths: data.step.doc_paths,
             max_length: 3000,
             enhanced_context: data.enhancedContext,
-            model: data.selectedModel || "claude",
+            model: data.selectedModel || data.enhancedContext?.model || "claude",
           }),
+          signal: abortController.signal,
         });
 
         if (response.ok) {
           const resData = await response.json();
           setSummaries(resData.summaries || []);
         }
-      } catch (error) {
+      } catch (error: any) {
+        if (error.name === 'AbortError') {
+          console.log("🚫 ChatNode: Request aborted");
+          return;
+        }
         console.error("Error fetching summaries:", error);
+      } finally {
+        isFetchingRef.current = false;
       }
     };
 
     fetchSummaries();
-  }, [data.step.doc_paths]);
+
+    // Cleanup: only abort if request key changed
+    return () => {
+      if (requestKey !== lastRequestKeyRef.current) {
+        if (abortControllerRef.current) {
+          abortControllerRef.current.abort();
+          abortControllerRef.current = null;
+        }
+        isFetchingRef.current = false;
+      }
+    };
+  }, [data.step.doc_paths, data.selectedModel, data.enhancedContext?.model]);
 
   return (
     <ResizableWrapper nodeId={id} initialWidth={500} initialHeight={600} minWidth={350} minHeight={400}>

@@ -29,6 +29,7 @@ class DocSummarizer:
         """
         self.vector_store = VectorStore(collection_name=collection_name)
         self.temperature = temperature
+        self.model_name = model_name  # ADD THIS LINE - store model_name as instance variable
 
         # Use selected model for summarization
         self.llm = get_llm_service(model_name)
@@ -240,6 +241,7 @@ class DocSummarizer:
         rag_engine = RAGEngine(collection_name="docs")
 
         for doc_path in doc_paths:
+            summary_content = None  # Initialize to avoid undefined variable errors
             try:
                 # Find matching docs from journey context
                 relevant_journey_docs = [
@@ -299,8 +301,11 @@ class DocSummarizer:
                                 step_description,
                                 step_number
                             )
-                        else:
+                        elif candidate_chunks:
+                            # Fallback if no chunks selected but we have candidates
                             summary_content = candidate_chunks[0]['content'][:max_length]
+                        else:
+                            summary_content = relevant_journey_docs[0].get('content', '')[:max_length]
                     else:
                         summary_content = relevant_journey_docs[0].get('content', '')[:max_length]
                 else:
@@ -315,16 +320,29 @@ class DocSummarizer:
                 # Get metadata for response
                 metadata = self._get_doc_metadata(doc_path)
 
-                summaries.append({
-                    'doc_path': doc_path,
-                    'summary': summary_content,
-                    'url': metadata.get('url', ''),
-                    'title': metadata.get('title', ''),
-                    'step_relevant': bool(relevant_journey_docs)  # Flag if this was enhanced
-                })
+                # Only append if summary_content was successfully generated
+                if summary_content:
+                    summaries.append({
+                        'doc_path': doc_path,
+                        'summary': summary_content,
+                        'url': metadata.get('url', ''),
+                        'title': metadata.get('title', ''),
+                        'step_relevant': bool(relevant_journey_docs)  # Flag if this was enhanced
+                    })
+                else:
+                    # If summary_content is still None, add error entry
+                    summaries.append({
+                        'doc_path': doc_path,
+                        'summary': f"Error: Could not generate summary for {doc_path}",
+                        'url': '',
+                        'title': '',
+                        'step_relevant': False
+                    })
 
             except Exception as e:
                 print(f"❌ Error summarizing {doc_path} with RAG: {e}")
+                import traceback
+                traceback.print_exc()
                 # Fallback to regular summary
                 try:
                     fallback_summary = self._get_regular_summary(
@@ -343,6 +361,14 @@ class DocSummarizer:
                     })
                 except Exception as e2:
                     print(f"❌ Fallback also failed for {doc_path}: {e2}")
+                    # Last resort: add error entry
+                    summaries.append({
+                        'doc_path': doc_path,
+                        'summary': f"Error generating summary: {str(e)}",
+                        'url': '',
+                        'title': '',
+                        'step_relevant': False
+                    })
 
         return summaries
 

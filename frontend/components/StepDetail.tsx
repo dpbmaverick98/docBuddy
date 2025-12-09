@@ -7,6 +7,9 @@ import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { JourneyStep } from "@/app/page";
 import { Copy, Check } from "lucide-react";
 
+// Define the backend URL directly
+const API_BASE_URL = "http://localhost:8000/api";
+
 interface StepDetailProps {
   step: JourneyStep;
   onClose: () => void;
@@ -101,7 +104,8 @@ export default function StepDetail({ step, onClose, enhancedContext, selectedMod
         };
         console.log("📤 StepDetail sending request:", requestBody);
 
-        const response = await fetch("/api/docs/summaries", {
+        // Use direct URL
+        const response = await fetch(`${API_BASE_URL}/docs/summaries`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

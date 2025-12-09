@@ -7,6 +7,9 @@ import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { JourneyStep } from "@/app/page";
 import { Copy, Check } from "lucide-react";
 
+// Define the backend URL directly
+const API_BASE_URL = "http://localhost:8000/api";
+
 interface DocSummary {
   doc_path: string;
   summary: string;
@@ -54,7 +57,8 @@ export default function StepChat({ step, summaries, enhancedContext }: StepChatP
       // Combine summaries for context
       const context = summaries.map(s => `${s.title || s.heading}: ${s.summary}`).join("\n\n");
 
-      const response = await fetch("/api/journey/ask-step", {
+      // Use direct URL
+      const response = await fetch(`${API_BASE_URL}/journey/ask-step`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

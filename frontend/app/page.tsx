@@ -6,6 +6,9 @@ import { Sparkles, ArrowRight, FileText, Code2, Database, Box, Layers, Zap, Chev
 import JourneyCanvas from "@/components/canvas/JourneyCanvas";
 import { ReactFlowProvider } from "reactflow";
 
+// Define the backend URL directly to avoid Next.js proxy timeouts
+const API_BASE_URL = "http://localhost:8000/api";
+
 // --- TYPES ---
 export interface JourneyStep {
   step_number: number;
@@ -84,24 +87,39 @@ const ReactFlowCanvas = ({ active, journey, loading, selectedModel }: { active: 
         }}
       ></div>
 
-      {/* Real Journey Canvas when available */}
-      {active && (journey || loading) && (
-        <div className="absolute inset-0 z-10">
-           {loading ? (
-             <div className="flex h-full w-full items-center justify-center">
-                <div className="bg-[#252525] p-8 rounded-2xl shadow-2xl flex flex-col items-center animate-in fade-in zoom-in duration-300 border border-[#3a3a3a]">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
-                  <p className="text-lg font-medium text-[#d4d4d4]">Generating your journey...</p>
-                  <p className="text-sm text-[#858585] mt-2">Analyzing documentation and creating steps</p>
-                </div>
-             </div>
-           ) : (
+      {/* Content Layer with Smooth Transitions */}
+      <AnimatePresence mode="wait">
+        {active && loading && (
+           <motion.div 
+             key="loading"
+             initial={{ opacity: 0 }}
+             animate={{ opacity: 1 }}
+             exit={{ opacity: 0 }}
+             transition={{ duration: 0.3 }}
+             className="absolute inset-0 z-10 flex h-full w-full items-center justify-center bg-[#1e1e1e]/50 backdrop-blur-sm"
+           >
+              <div className="bg-[#252525] p-8 rounded-2xl shadow-2xl flex flex-col items-center border border-[#3a3a3a]">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
+                <p className="text-lg font-medium text-[#d4d4d4]">Generating your journey...</p>
+                <p className="text-sm text-[#858585] mt-2">Analyzing documentation and creating steps</p>
+              </div>
+           </motion.div>
+         )}
+
+         {active && journey && !loading && (
+           <motion.div 
+             key="canvas"
+             initial={{ opacity: 0, scale: 0.98 }}
+             animate={{ opacity: 1, scale: 1 }}
+             transition={{ duration: 0.5, ease: "easeOut" }}
+             className="absolute inset-0 z-10"
+           >
              <ReactFlowProvider>
                 <JourneyCanvas journey={journey} enhancedContext={journey?.enhanced_context} selectedModel={selectedModel} />
              </ReactFlowProvider>
-           )}
-        </div>
-      )}
+           </motion.div>
+         )}
+      </AnimatePresence>
     </div>
   );
 };
@@ -160,6 +178,7 @@ const ModelSelector = ({ selected, setSelected }: { selected: string, setSelecte
 // --- MAIN COMPONENT ---
 export default function Home() {
   const [hasStarted, setHasStarted] = useState(false);
+  const [isExiting, setIsExiting] = useState(false); // New state for sequence
   const [inputValue, setInputValue] = useState('');
   
   // App Logic State
@@ -182,7 +201,8 @@ export default function Home() {
   useEffect(() => {
     const fetchProjects = async () => {
       try {
-        const response = await fetch("/api/projects/");
+        // Use direct URL
+        const response = await fetch(`${API_BASE_URL}/projects/`);
         if (response.ok) {
           const projects = await response.json();
           const projectNames = projects.map((p: any) => p.name);
@@ -211,7 +231,8 @@ export default function Home() {
 
       const requestBody = { query, max_steps: 10, project: selectedProject, model: selectedModel };
       
-      const response = await fetch("/api/journey/generate", {
+      // Use direct URL
+      const response = await fetch(`${API_BASE_URL}/journey/generate`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -251,13 +272,21 @@ export default function Home() {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const startSequence = (e: React.FormEvent) => {
     e.preventDefault();
-    handleGenerateJourney(inputValue);
+    if (!inputValue.trim()) return;
+
+    // 1. Start exit animation
+    setIsExiting(true);
+    
+    // Note: We removed the setTimeout. We rely on AnimatePresence's onExitComplete 
+    // in the JSX to trigger the layout change once the textarea has finished collapsing.
   };
 
   const handleDocClick = (docId: string, docName: string) => {
       setSelectedProject(docId);
+      // Slight delay to allow state update before starting sequence if we want auto-start
+      // Or just pre-fill:
       setInputValue(`How do I integrate ${docName}?`);
   };
 
@@ -267,15 +296,13 @@ export default function Home() {
       {/* 1. BACKGROUND LAYER (Canvas) */}
       <ReactFlowCanvas active={hasStarted} journey={journey} loading={loading} selectedModel={selectedModel} />
 
-      {/* 2. ATMOSPHERE LAYER (Removed as per request) */}
-
       {/* 3. INTERACTIVE UI LAYER */}
       {/* Centering the main content block vertically */}
       <div className={`relative z-10 w-full h-full flex flex-col items-center pointer-events-none ${hasStarted ? 'justify-end pb-4' : 'justify-center'}`}>
         
         {/* HERO SECTION - Fades out on start */}
         <AnimatePresence>
-          {!hasStarted && (
+          {!hasStarted && !isExiting && (
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -302,38 +329,57 @@ export default function Home() {
           transition={{ 
             type: 'spring', 
             damping: 30, 
-            stiffness: 200 
+            stiffness: 200,
+            layout: { duration: 0.5 } // Explicit duration for layout change
           }}
         >
-          <form onSubmit={handleSubmit} className="relative group w-full">
-            {/* Glowing Border Gradient - Only show when not started */}
-            {!hasStarted && (
+          <form onSubmit={startSequence} className="relative group w-full">
+            {/* Glowing Border Gradient - Only show when not started/exiting */}
+            {!hasStarted && !isExiting && (
                 <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-500 via-purple-500 to-blue-500 rounded-xl opacity-30 group-hover:opacity-60 transition duration-500 blur-sm"></div>
             )}
             
             {/* Main Input Box */}
             <div className={`relative flex flex-col bg-[#252525]/90 border border-[#3a3a3a] rounded-xl shadow-2xl backdrop-blur-xl overflow-hidden transition-all duration-500 ${hasStarted ? 'scale-90' : ''}`}>
-               {/* Text Area - Hide when started */}
-               {!hasStarted && (
-                   <textarea
-                    value={inputValue}
-                    onChange={(e) => {
-                        setInputValue(e.target.value);
-                    }}
-                    placeholder={`How do I integrate ${selectedProject.charAt(0).toUpperCase() + selectedProject.slice(1)}?`}
-                    className="w-full bg-transparent text-[#d4d4d4] placeholder-[#5a5a5a] text-lg px-5 py-4 focus:outline-none resize-none"
-                    rows={hasStarted ? 1 : 2}
-                    onKeyDown={(e) => {
-                    if(e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault(); 
-                        handleSubmit(e);
-                    }
-                    }}
-                />
-               )}
+               {/* Text Area - Fade out content first */}
+               <AnimatePresence mode="wait" onExitComplete={() => {
+                   // This triggers ONLY after the textarea has fully collapsed
+                   setHasStarted(true);
+                   setIsExiting(false);
+                   handleGenerateJourney(inputValue);
+               }}>
+                  {!isExiting && !hasStarted && (
+                    <motion.div
+                      key="input-area"
+                      initial={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+                      transition={{ 
+                        duration: 0.4, 
+                        ease: "easeInOut" 
+                      }}
+                      className="w-full"
+                    >
+                      <textarea
+                       value={inputValue}
+                       onChange={(e) => {
+                           setInputValue(e.target.value);
+                       }}
+                       placeholder={`How do I integrate ${selectedProject.charAt(0).toUpperCase() + selectedProject.slice(1)}?`}
+                       className="w-full bg-transparent text-[#d4d4d4] placeholder-[#5a5a5a] text-lg px-5 py-4 focus:outline-none resize-none block"
+                       rows={2}
+                       onKeyDown={(e) => {
+                           if(e.key === 'Enter' && !e.shiftKey) {
+                               e.preventDefault(); 
+                               startSequence(e);
+                           }
+                       }}
+                   />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               
               {/* Footer inside Input (Models & Button) */}
-              <div className={`flex items-center justify-between px-4 ${hasStarted ? 'py-2' : 'pb-3 pt-1'}`}>
+              <div className={`flex items-center justify-between px-4 ${hasStarted ? 'py-2' : 'pb-3 pt-1'} transition-all duration-300`}>
                 <div className="flex items-center gap-2">
                     {/* ModelSelector component */}
                     <ModelSelector selected={selectedModel} setSelected={setSelectedModel} />
@@ -346,7 +392,7 @@ export default function Home() {
                 </div>
 
                 <div className="flex items-center gap-2">
-                    {/* Start Button - Text changes when started */}
+                    {/* Start Button */}
                     <button 
                         type="submit"
                         className={`p-2 rounded-lg transition-all duration-200 flex items-center gap-2 text-sm font-medium ${
@@ -357,8 +403,6 @@ export default function Home() {
                         disabled={!inputValue.trim() && !hasStarted}
                         onClick={(e) => {
                             if (hasStarted) {
-                                // If already started, maybe reset or do nothing (since user wants to see the journey)
-                                // For now, let's just let it be a status indicator or "New" button
                                 e.preventDefault();
                                 setHasStarted(false);
                                 setJourney(null);
@@ -372,6 +416,7 @@ export default function Home() {
                 </div>
               </div>
             </div>
+            {/* Error Message */}
             {error && (
                 <div className="absolute top-full left-0 right-0 mt-2 p-2 bg-red-900/50 border border-red-500/30 rounded-lg text-red-200 text-sm">
                     {error}
@@ -381,11 +426,11 @@ export default function Home() {
 
           {/* FLOATING DOCS SUGGESTIONS */}
           <AnimatePresence>
-            {!hasStarted && (
+            {!hasStarted && !isExiting && (
               <motion.div 
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1, transition: { delay: 0.2 } }}
-                exit={{ opacity: 0, y: 10 }}
+                exit={{ opacity: 0, y: 10, transition: { duration: 0.3 } }}
                 className="flex flex-wrap items-center justify-center gap-3 mt-6"
               >
                 <span className="text-[#5a5a5a] text-xs uppercase tracking-wider font-semibold mr-2">Import Docs:</span>
@@ -407,7 +452,7 @@ export default function Home() {
         </motion.div>
       </div>
 
-      {/* 4. OVERLAY CONTROLS (Removed Reset Demo Button) */}
+      {/* 4. OVERLAY CONTROLS */}
     </div>
   );
 }

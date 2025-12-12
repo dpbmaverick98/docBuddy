@@ -79,11 +79,11 @@ Keep the answer concise but complete. If you don't have enough information from 
                 # 💰 x402 Payment
             else:
                 # Use direct LLM service
-            answer = self.llm.generate(
-                prompt=prompt,
-                max_tokens=1000,
-                temperature=self.temperature
-            )
+                answer = self.llm.generate(
+                    prompt=prompt,
+                    max_tokens=1000,
+                    temperature=self.temperature
+                )
             
             return answer.strip()
             

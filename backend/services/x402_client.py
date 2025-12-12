@@ -251,6 +251,4 @@ class X402Client:
             response = requests.get(f"{self.service_url}/health", timeout=5)
             return response.status_code == 200
         except:
-            return False</contents>
-</xai:function_call name="write">
-<parameter name="file_path">/Users/dpbmaverick98/docsBuddy/docBuddy/backend/env.example
+            return False

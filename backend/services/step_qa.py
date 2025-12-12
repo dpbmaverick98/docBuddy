@@ -83,11 +83,7 @@ Keep the answer concise but complete. If you don't have enough information from 
                     prompt=prompt,
                     max_tokens=1000,
                     temperature=self.temperature
-                ) self.llm.generate(
-                prompt=prompt,
-                max_tokens=1000,
-                temperature=self.temperature
-            )
+                )
             
             return answer.strip()
             

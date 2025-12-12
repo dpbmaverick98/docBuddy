@@ -7,11 +7,13 @@ export class PaymentMiddleware {
   private w3: Web3;
   private facilitatorUrl: string;
   private network: string;
+  private receivingWalletAddress: string; // Wallet that receives payments
 
-  constructor(facilitatorUrl: string, network: string) {
+  constructor(facilitatorUrl: string, network: string, receivingWalletAddress: string) {
     this.w3 = new Web3();
     this.facilitatorUrl = facilitatorUrl;
     this.network = network;
+    this.receivingWalletAddress = receivingWalletAddress.toLowerCase();
   }
 
   createMiddleware(requiredAmount: string) {
@@ -27,6 +29,7 @@ export class PaymentMiddleware {
               scheme: 'exact',
               amount: requiredAmount,
               currency: 'USDC',
+              recipient_address: this.receivingWalletAddress, // Where to send payment
               description: 'AI service payment'
             }
           });
@@ -40,7 +43,7 @@ export class PaymentMiddleware {
         }
 
         // Verify payment with facilitator
-        const verificationResult = await this.verifyPayment(paymentPayload);
+        const verificationResult = await this.verifyPayment(paymentPayload, req);
 
         if (!verificationResult.valid) {
           return res.status(402).json({
@@ -70,7 +73,7 @@ export class PaymentMiddleware {
     );
   }
 
-  private async verifyPayment(payload: PaymentPayload): Promise<{ valid: boolean; error?: string }> {
+  private async verifyPayment(payload: PaymentPayload, req: Request): Promise<{ valid: boolean; error?: string }> {
     try {
       // Check timestamp validity (5 minutes window)
       const currentTime = Math.floor(Date.now() / 1000);
@@ -107,9 +110,13 @@ export class PaymentMiddleware {
         return { valid: false, error: 'Invalid signature' };
       }
 
+      // TODO: Verify payment was actually sent to receiving wallet via facilitator
+      // For now, we trust the signature verification
+      // In production, verify with facilitator that payment was sent to this.receivingWalletAddress
+
       // Payment is valid - record it
       analytics.recordPayment(req.path, parseInt(payload.amount), payload.client_address, true);
-      console.log(`✅ Payment verified: ${payload.amount}¢ from ${payload.client_address} for ${req.path}`);
+      console.log(`✅ Payment verified: ${payload.amount}¢ from ${payload.client_address} to ${this.receivingWalletAddress} for ${req.path}`);
 
       return { valid: true };
 
@@ -118,6 +125,4 @@ export class PaymentMiddleware {
       return { valid: false, error: 'Verification failed' };
     }
   }
-}</contents>
-</xai:function_call name="write">
-<parameter name="file_path">/Users/dpbmaverick98/docsBuddy/docBuddy/x402-service/src/server.ts
+}

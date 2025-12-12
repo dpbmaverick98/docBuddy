@@ -322,13 +322,13 @@ class DocSummarizer:
 
                 # Only append if summary_content was successfully generated
                 if summary_content:
-                    summaries.append({
-                        'doc_path': doc_path,
-                        'summary': summary_content,
-                        'url': metadata.get('url', ''),
-                        'title': metadata.get('title', ''),
-                        'step_relevant': bool(relevant_journey_docs)  # Flag if this was enhanced
-                    })
+                summaries.append({
+                    'doc_path': doc_path,
+                    'summary': summary_content,
+                    'url': metadata.get('url', ''),
+                    'title': metadata.get('title', ''),
+                    'step_relevant': bool(relevant_journey_docs)  # Flag if this was enhanced
+                })
                 else:
                     # If summary_content is still None, add error entry
                     summaries.append({

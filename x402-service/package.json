@@ -28,6 +28,4 @@
     "ts-node": "^10.9.0",
     "jest": "^29.0.0"
   }
-}</contents>
-</xai:function_call name="write">
-<parameter name="file_path">/Users/dpbmaverick98/docsBuddy/docBuddy/x402-service/tsconfig.json
+}

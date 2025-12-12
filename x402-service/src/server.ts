@@ -26,9 +26,16 @@ const k2Client = new K2Client(process.env.HF_TOKEN!);
 const cohereClient = new CohereClient(process.env.COHERE_API_KEY!);
 
 // Initialize payment middleware
+const receivingWalletAddress = process.env.X402_RECEIVING_WALLET_ADDRESS;
+if (!receivingWalletAddress) {
+  console.error('❌ X402_RECEIVING_WALLET_ADDRESS not set - payments cannot be received!');
+  process.exit(1);
+}
+
 const paymentMiddleware = new PaymentMiddleware(
   process.env.X402_FACILITATOR_URL || 'https://open.x402.host',
-  process.env.X402_NETWORK || 'base'
+  process.env.X402_NETWORK || 'base',
+  receivingWalletAddress
 );
 
 // Pricing configuration (in USD cents)
@@ -79,7 +86,7 @@ app.use((err: Error, req: express.Request, res: express.Response, next: express.
 
 app.post(
   '/v1/k2/chat/completions',
-  paymentMiddleware.createMiddleware(PRICING.K2_CHAT),
+  paymentMiddleware.createMiddleware(PRICING.K2_CHAT.toString()),
   async (req: express.Request, res: express.Response) => {
     try {
       const body: K2ChatRequest = req.body;
@@ -121,7 +128,7 @@ app.post(
 
 app.post(
   '/v1/cohere/rerank',
-  paymentMiddleware.createMiddleware(PRICING.COHERE_RERANK),
+  paymentMiddleware.createMiddleware(PRICING.COHERE_RERANK.toString()),
   async (req: express.Request, res: express.Response) => {
     try {
       const body: CohereRerankRequest = req.body;
@@ -157,7 +164,7 @@ app.post(
 
 app.post(
   '/v1/cohere/chat',
-  paymentMiddleware.createMiddleware(PRICING.COHERE_CHAT),
+  paymentMiddleware.createMiddleware(PRICING.COHERE_CHAT.toString()),
   async (req: express.Request, res: express.Response) => {
     try {
       const body: CohereChatRequest = req.body;
@@ -192,7 +199,7 @@ app.post(
 
 app.post(
   '/v1/cohere/embed',
-  paymentMiddleware.createMiddleware(PRICING.COHERE_EMBED),
+  paymentMiddleware.createMiddleware(PRICING.COHERE_EMBED.toString()),
   async (req: express.Request, res: express.Response) => {
     try {
       const body: CohereEmbedRequest = req.body;

@@ -45,7 +45,7 @@ class JourneyGenerator:
 
         # Initialize x402 client for payment-enabled services
         self.x402_client = X402Client()
-
+        
         if use_rag:
             # Use LlamaIndex-powered RAG engine
             try:
@@ -61,7 +61,7 @@ class JourneyGenerator:
             # Use direct vector store (legacy)
             self.vector_store = VectorStore(collection_name=collection_name, x402_client=self.x402_client)
             self.rag_engine = None
-
+        
         # Initialize intent extractor
         self.intent_extractor = IntentExtractor(model_name=model_name, x402_client=self.x402_client)
 
@@ -73,8 +73,8 @@ class JourneyGenerator:
             # Will use x402 client
             self.llm = None
         else:
-            self.llm = get_llm_service(model_name)
-
+        self.llm = get_llm_service(model_name)
+    
     def generate_journey(
         self,
         user_query: str,

@@ -296,11 +296,11 @@ Output only the queries, one per line."""
                 # Create mock response object
                 response = type('MockResponse', (), {'text': response_text})()
             else:
-                response = self.cohere.chat(
-                    message=prompt,
-                    max_tokens=100,
-                    temperature=0.2
-                )
+            response = self.cohere.chat(
+                message=prompt,
+                max_tokens=100,
+                temperature=0.2
+            )
 
             # Extract queries from response
             generated_queries = response.text.strip().split('\n')
@@ -354,11 +354,11 @@ Output only the relevant text:"""
                     )
                     # 💰 x402 Payment
                 else:
-                    response = self.cohere.chat(
-                        message=prompt,
-                        max_tokens=300,
-                        temperature=0.0
-                    )
+                response = self.cohere.chat(
+                    message=prompt,
+                    max_tokens=300,
+                    temperature=0.0
+                )
                     compressed = response.text.strip()
 
                 compressed = response.text.strip()

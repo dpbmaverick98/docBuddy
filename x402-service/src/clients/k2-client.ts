@@ -5,8 +5,8 @@ export class K2Client {
 
   constructor(apiKey: string) {
     this.client = new OpenAI({
-      base_url: 'https://router.huggingface.co/v1',
-      api_key: apiKey,
+      baseURL: 'https://router.huggingface.co/v1',
+      apiKey: apiKey,
     });
   }
 
@@ -17,13 +17,11 @@ export class K2Client {
   }): Promise<string> {
     const completion = await this.client.chat.completions.create({
       model: 'moonshotai/Kimi-K2-Instruct:novita',
-      messages: params.messages,
+      messages: params.messages as any, // Type assertion for compatibility
       max_tokens: params.max_tokens,
       temperature: params.temperature,
     });
 
     return completion.choices[0]?.message?.content || '';
   }
-}</contents>
-</xai:function_call name="write">
-<parameter name="file_path">/Users/dpbmaverick98/docsBuddy/docBuddy/x402-service/src/clients/cohere-client.ts
+}

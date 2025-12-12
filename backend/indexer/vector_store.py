@@ -177,7 +177,7 @@ class VectorStore:
         # Generate query embedding with retry
         max_retries = 3
         query_embedding = None
-
+        
         for attempt in range(max_retries):
             try:
                 if self.x402_client:
@@ -193,12 +193,12 @@ class VectorStore:
                     print("✅ Query embedded")
                     break
                 else:
-                    query_embedding = self.cohere.embed(
-                        texts=[query],
-                        model='embed-multilingual-v3.0',
-                        input_type='search_query'
-                    ).embeddings[0]
-                    break
+                query_embedding = self.cohere.embed(
+                    texts=[query],
+                    model='embed-multilingual-v3.0',
+                    input_type='search_query'
+                ).embeddings[0]
+                break
             except Exception as e:
                 if "rate limit" in str(e).lower() and attempt < max_retries - 1:
                     wait_time = 60 * (2 ** attempt)
@@ -206,7 +206,7 @@ class VectorStore:
                     time.sleep(wait_time)
                 else:
                     raise
-
+        
         if query_embedding is None:
             raise Exception("Failed to generate query embedding")
         

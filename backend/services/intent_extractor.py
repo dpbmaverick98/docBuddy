@@ -25,7 +25,7 @@ class IntentExtractor:
 
         if model_name != "hf-k2-openai":
             # Use direct Claude service (not x402)
-            self.llm = get_llm_service(model_name)
+        self.llm = get_llm_service(model_name)
         else:
             # Will use x402 client
             self.llm = None
@@ -78,11 +78,11 @@ Return ONLY valid JSON: {{
                 print("✅ Payment successful, intent extracted")
             else:
                 # Use direct LLM service
-                response_text = self.llm.generate(
-                    prompt=prompt,
-                    max_tokens=500,
+            response_text = self.llm.generate(
+                prompt=prompt,
+                max_tokens=500,
                     temperature=0.3
-                )
+            )
             
             response_text = response_text.strip()
             

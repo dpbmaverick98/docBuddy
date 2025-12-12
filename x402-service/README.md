@@ -25,8 +25,13 @@ Copy `.env.example` to `.env` and fill in:
 
 ```bash
 cp .env.example .env
-# Edit .env with your API keys and wallet info
+# Edit .env with your API keys and receiving wallet address
 ```
+
+**Important Wallet Configuration:**
+- **`X402_RECEIVING_WALLET_ADDRESS`**: Your wallet address that **receives** USDC payments
+- This is the service operator's wallet (where fees go)
+- DocsBuddy (the client) has its own wallet with private key for signing payments
 
 ### 3. Build and Run
 

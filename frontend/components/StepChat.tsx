@@ -138,8 +138,8 @@ export default function StepChat({ step, summaries, enhancedContext }: StepChatP
       }
       if (timeoutIdRef.current) {
         clearTimeout(timeoutIdRef.current);
-      }
-    };
+    }
+  };
   }, []);
 
   return (

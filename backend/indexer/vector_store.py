@@ -193,12 +193,12 @@ class VectorStore:
                     print("✅ Query embedded")
                     break
                 else:
-                query_embedding = self.cohere.embed(
-                    texts=[query],
-                    model='embed-multilingual-v3.0',
-                    input_type='search_query'
-                ).embeddings[0]
-                break
+                    query_embedding = self.cohere.embed(
+                        texts=[query],
+                        model='embed-multilingual-v3.0',
+                        input_type='search_query'
+                    ).embeddings[0]
+                    break
             except Exception as e:
                 if "rate limit" in str(e).lower() and attempt < max_retries - 1:
                     wait_time = 60 * (2 ** attempt)

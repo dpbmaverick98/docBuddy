@@ -73,7 +73,7 @@ class JourneyGenerator:
             # Will use x402 client
             self.llm = None
         else:
-        self.llm = get_llm_service(model_name)
+            self.llm = get_llm_service(model_name)
     
     def generate_journey(
         self,

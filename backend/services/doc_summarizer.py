@@ -322,7 +322,7 @@ class DocSummarizer:
 
                 # Only append if summary_content was successfully generated
                 if summary_content:
-                summaries.append({
+                    summaries.append({
                     'doc_path': doc_path,
                     'summary': summary_content,
                     'url': metadata.get('url', ''),

@@ -13,15 +13,17 @@ load_dotenv()
 
 
 class RAGEngine:
-    def __init__(self, collection_name: str = "docs"):
+    def __init__(self, collection_name: str = "docs", x402_client=None):
         """
         Initialize RAG engine with ChromaDB (uses existing Cohere embeddings)
 
         Args:
             collection_name: ChromaDB collection name
+            x402_client: x402 client for payment-enabled requests
         """
         # Use direct vector store (has Cohere embeddings)
-        self.vector_store = VectorStore(collection_name=collection_name)
+        self.vector_store = VectorStore(collection_name=collection_name, x402_client=x402_client)
+        self.x402_client = x402_client
 
         # Initialize Cohere client for rerank and query expansion
         api_key = os.getenv('COHERE_API_KEY')
@@ -283,11 +285,22 @@ Focus on technical documentation search.
 Consider synonyms, different phrasings, and related technical concepts.
 Output only the queries, one per line."""
 
-            response = self.cohere.chat(
-                message=prompt,
-                max_tokens=100,
-                temperature=0.2
-            )
+            if self.x402_client:
+                # Use x402 Cohere chat
+                response_text = self.x402_client.cohere_chat(
+                    message=prompt,
+                    max_tokens=100,
+                    temperature=0.2
+                )
+                # 💰 x402 Payment: $0.05 USDC
+                # Create mock response object
+                response = type('MockResponse', (), {'text': response_text})()
+            else:
+                response = self.cohere.chat(
+                    message=prompt,
+                    max_tokens=100,
+                    temperature=0.2
+                )
 
             # Extract queries from response
             generated_queries = response.text.strip().split('\n')
@@ -332,11 +345,21 @@ Remove boilerplate, navigation, and irrelevant content.
 If no relevant content found, output 'N/A'.
 Output only the relevant text:"""
 
-                response = self.cohere.chat(
-                    message=prompt,
-                    max_tokens=300,
-                    temperature=0.0
-                )
+                if self.x402_client:
+                    # Use x402 Cohere chat for compression
+                    compressed = self.x402_client.cohere_chat(
+                        message=prompt,
+                        max_tokens=300,
+                        temperature=0.0
+                    )
+                    # 💰 x402 Payment
+                else:
+                    response = self.cohere.chat(
+                        message=prompt,
+                        max_tokens=300,
+                        temperature=0.0
+                    )
+                    compressed = response.text.strip()
 
                 compressed = response.text.strip()
                 if compressed and compressed != 'N/A':

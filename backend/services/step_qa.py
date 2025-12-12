@@ -10,17 +10,25 @@ load_dotenv()
 
 
 class StepQAService:
-    def __init__(self, temperature: float = 0.7, model_name: str = "claude"):
+    def __init__(self, temperature: float = 0.7, model_name: str = "claude", x402_client=None):
         """
         Initialize Q&A service
 
         Args:
             temperature: Temperature for Q&A (higher = more conversational)
             model_name: LLM model to use ("claude", "hf-k2-openai")
+            x402_client: x402 client for payment-enabled requests
         """
-        # Use selected model for Q&A
-        self.llm = get_llm_service(model_name)
         self.temperature = temperature
+        self.model_name = model_name
+        self.x402_client = x402_client
+
+        if model_name != "hf-k2-openai":
+            # Use direct LLM service
+            self.llm = get_llm_service(model_name)
+        else:
+            # Will use x402 client
+            self.llm = None
     
     def answer_question(
         self,
@@ -60,8 +68,22 @@ Provide a clear, actionable answer focused on what the developer needs to do. In
 Keep the answer concise but complete. If you don't have enough information from the context, say so and suggest checking the full documentation."""
 
         try:
-            # Use Claude for Q&A
-            answer = self.llm.generate(
+            # Use LLM for Q&A
+            if self.model_name == "hf-k2-openai" and self.x402_client:
+                # Use x402 K2 service
+                answer = self.x402_client.k2_generate(
+                    prompt=prompt,
+                    max_tokens=1000,
+                    temperature=self.temperature
+                )
+                # 💰 x402 Payment
+            else:
+                # Use direct LLM service
+                answer = self.llm.generate(
+                    prompt=prompt,
+                    max_tokens=1000,
+                    temperature=self.temperature
+                ) self.llm.generate(
                 prompt=prompt,
                 max_tokens=1000,
                 temperature=self.temperature

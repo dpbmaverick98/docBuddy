@@ -12,14 +12,23 @@ load_dotenv()
 
 
 class IntentExtractor:
-    def __init__(self, model_name: str = "claude"):
+    def __init__(self, model_name: str = "claude", x402_client=None):
         """
         Initialize intent extractor
 
         Args:
             model_name: LLM model to use ("claude", "hf-k2-openai")
+            x402_client: x402 client for payment-enabled requests
         """
-        self.llm = get_llm_service(model_name)
+        self.model_name = model_name
+        self.x402_client = x402_client
+
+        if model_name != "hf-k2-openai":
+            # Use direct Claude service (not x402)
+            self.llm = get_llm_service(model_name)
+        else:
+            # Will use x402 client
+            self.llm = None
     
     def extract_intent(self, user_query: str) -> Dict:
         """
@@ -56,12 +65,24 @@ Return ONLY valid JSON: {{
 }}"""
 
         try:
-            # Use Claude for intent extraction
-            response_text = self.llm.generate(
-                prompt=prompt,
-                max_tokens=500,
-                temperature=0.3  # Lower temp for more deterministic extraction
-            )
+            # Use LLM for intent extraction
+            if self.model_name == "hf-k2-openai" and self.x402_client:
+                # Use x402 K2 service
+                print("💳 Making x402 payment for K2 intent extraction...")
+                response_text = self.x402_client.k2_generate(
+                    prompt=prompt,
+                    max_tokens=500,
+                    temperature=0.3
+                )
+                # 💰 x402 Payment: $0.50 USDC
+                print("✅ Payment successful, intent extracted")
+            else:
+                # Use direct LLM service
+                response_text = self.llm.generate(
+                    prompt=prompt,
+                    max_tokens=500,
+                    temperature=0.3
+                )
             
             response_text = response_text.strip()
             

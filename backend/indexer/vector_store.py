@@ -15,7 +15,7 @@ from cohere.error import CohereAPIError
 
 
 class VectorStore:
-    def __init__(self, collection_name: str = "docs", persist_directory: str = None):
+    def __init__(self, collection_name: str = "docs", persist_directory: str = None, x402_client=None):
         """
         Initialize ChromaDB client and collection
         
@@ -177,23 +177,36 @@ class VectorStore:
         # Generate query embedding with retry
         max_retries = 3
         query_embedding = None
-        
+
         for attempt in range(max_retries):
             try:
-                query_embedding = self.cohere.embed(
-                    texts=[query],
-                    model='embed-multilingual-v3.0',
-                    input_type='search_query'
-                ).embeddings[0]
-                break
-            except CohereAPIError as e:
+                if self.x402_client:
+                    # Use x402 Cohere embed
+                    print("💳 x402 payment: Cohere embedding for query...")
+                    embeddings = self.x402_client.cohere_embed(
+                        texts=[query],
+                        model='embed-multilingual-v3.0',
+                        input_type='search_query'
+                    )
+                    query_embedding = embeddings[0]
+                    # 💰 x402 Payment: $0.02 USDC
+                    print("✅ Query embedded")
+                    break
+                else:
+                    query_embedding = self.cohere.embed(
+                        texts=[query],
+                        model='embed-multilingual-v3.0',
+                        input_type='search_query'
+                    ).embeddings[0]
+                    break
+            except Exception as e:
                 if "rate limit" in str(e).lower() and attempt < max_retries - 1:
                     wait_time = 60 * (2 ** attempt)
                     print(f"⚠️  Rate limit hit. Waiting {wait_time}s...")
                     time.sleep(wait_time)
                 else:
                     raise
-        
+
         if query_embedding is None:
             raise Exception("Failed to generate query embedding")
         

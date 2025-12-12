@@ -371,18 +371,19 @@ export default function StepDetail({ step, onClose, enhancedContext, selectedMod
       <div>
         <h4 className="font-semibold text-[#d4d4d4] mb-3">Documentation Links:</h4>
         <div className="space-y-2">
-          {step.doc_urls.map((url, index) => {
-            const summary = summaries.find(s => s.doc_path === step.doc_paths[index]);
+          {(step.doc_urls || step.doc_paths || []).map((url, index) => {
+            const docPath = step.doc_paths?.[index] || '';
+            const summary = summaries.find(s => s.doc_path === docPath);
             return (
               <div key={index} className="border border-[#3a3a3a] rounded-lg p-3 bg-[#252525]">
                 <a
-                  href={url}
+                  href={url || docPath}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-blue-400 hover:text-blue-300 hover:underline flex items-center gap-2"
                 >
                   <span className="font-medium">
-                    {summary?.title || summary?.heading || step.doc_paths[index] || url}
+                    {summary?.title || summary?.heading || docPath || url}
                   </span>
                   <svg
                     className="w-4 h-4"
@@ -402,7 +403,7 @@ export default function StepDetail({ step, onClose, enhancedContext, selectedMod
                   <p className="text-xs text-[#858585] mt-1">{summary.heading}</p>
                 )}
                 <p className="text-xs text-[#5a5a5a] mt-1 font-mono">
-                  {step.doc_paths[index]}
+                  {docPath}
                 </p>
               </div>
             );

@@ -269,8 +269,11 @@ Output only valid JSON:"""
                 return []
 
             response_text = response_text.strip()
+            
+            # Log raw response for debugging (first 500 chars)
+            print(f"📝 Raw K2 response (first 500 chars): {response_text[:500]}")
 
-            # Try to extract JSON
+            # Try to extract JSON from markdown code blocks
             if "```json" in response_text:
                 parts = response_text.split("```json")
                 if len(parts) > 1:
@@ -283,21 +286,61 @@ Output only valid JSON:"""
                     json_part = parts[1].split("```")[0].strip()
                     if json_part:
                         response_text = json_part
+            
+            # Try to find JSON array/object in the text
+            # Look for first '[' or '{' and last ']' or '}'
+            first_bracket = response_text.find('[')
+            first_brace = response_text.find('{')
+            
+            if first_bracket != -1 and (first_brace == -1 or first_bracket < first_brace):
+                # Array format
+                last_bracket = response_text.rfind(']')
+                if last_bracket != -1 and last_bracket > first_bracket:
+                    response_text = response_text[first_bracket:last_bracket + 1]
+            elif first_brace != -1:
+                # Object format
+                last_brace = response_text.rfind('}')
+                if last_brace != -1 and last_brace > first_brace:
+                    response_text = response_text[first_brace:last_brace + 1]
 
-            # Parse JSON
-            steps = json.loads(response_text)
+            # Parse JSON with better error handling
+            try:
+                steps = json.loads(response_text)
+            except json.JSONDecodeError as e:
+                print(f"❌ JSON parsing error: {e}")
+                print(f"📝 Attempted to parse: {response_text[:200]}...")
+                print(f"📝 Full response length: {len(response_text)} chars")
+                # Try to fix common JSON issues
+                # Remove trailing commas before closing brackets/braces
+                import re
+                # Fix trailing commas in arrays/objects
+                fixed_text = re.sub(r',\s*}', '}', response_text)
+                fixed_text = re.sub(r',\s*]', ']', fixed_text)
+                try:
+                    steps = json.loads(fixed_text)
+                    print("✅ Fixed JSON by removing trailing commas")
+                except json.JSONDecodeError:
+                    # If still fails, try to extract just the array part
+                    print("⚠️  JSON parsing failed, attempting to extract valid JSON...")
+                    raise Exception(f"Failed to parse JSON from K2 response. Error: {e}. Response preview: {response_text[:300]}")
 
             # Validate and clean steps
             validated_steps = []
             for i, step in enumerate(steps[:max_steps]):
                 if isinstance(step, dict) and 'title' in step and 'description' in step:
+                    # Extract doc_paths and doc_urls from top docs
+                    top_docs = docs[:3]
+                    doc_paths = [doc.get('doc_path', '') for doc in top_docs]
+                    doc_urls = [doc.get('doc_url', '') for doc in top_docs]
+                    
                     validated_step = {
                         'step_number': i + 1,
                         'title': step.get('title', f'Step {i+1}'),
                         'description': step.get('description', ''),
                         'prerequisites': step.get('prerequisites', []),
                         'outcome': step.get('outcome', ''),
-                        'doc_paths': [doc.get('doc_path', '') for doc in docs[:3]]  # Link to top docs
+                        'doc_paths': doc_paths,  # Link to top docs
+                        'doc_urls': doc_urls     # URLs for display
                     }
                     validated_steps.append(validated_step)
 
@@ -325,6 +368,10 @@ Output only valid JSON:"""
         
         for i, step in enumerate(steps):
             if isinstance(step, dict) and 'title' in step and 'description' in step:
+                # Preserve doc_paths and doc_urls if they exist, otherwise use top docs
+                doc_paths = step.get('doc_paths', [doc.get('doc_path', '') for doc in docs[:3]])
+                doc_urls = step.get('doc_urls', [doc.get('doc_url', '') for doc in docs[:3]])
+                
                 # Ensure step has all required fields
                 validated_step = {
                     'step_number': step.get('step_number', i + 1),
@@ -332,8 +379,38 @@ Output only valid JSON:"""
                     'description': step.get('description', ''),
                     'prerequisites': step.get('prerequisites', []),
                     'outcome': step.get('outcome', ''),
-                    'doc_paths': step.get('doc_paths', [doc.get('doc_path', '') for doc in docs[:3]])
+                    'doc_paths': doc_paths,
+                    'doc_urls': doc_urls
                 }
                 validated_steps.append(validated_step)
         
         return validated_steps
+    
+    def _estimate_total_time(self, steps: List[Dict]) -> str:
+        """
+        Estimate total time to complete all steps
+        
+        Args:
+            steps: List of step dicts
+            
+        Returns:
+            Estimated time string (e.g., "30 minutes", "2 hours")
+        """
+        if not steps:
+            return "0 minutes"
+        
+        # Rough estimate: 10-15 minutes per step on average
+        # Adjust based on step complexity if available
+        base_time_per_step = 12  # minutes
+        
+        total_minutes = len(steps) * base_time_per_step
+        
+        if total_minutes < 60:
+            return f"{total_minutes} minutes"
+        else:
+            hours = total_minutes // 60
+            minutes = total_minutes % 60
+            if minutes == 0:
+                return f"{hours} hour{'s' if hours > 1 else ''}"
+            else:
+                return f"{hours} hour{'s' if hours > 1 else ''} {minutes} minutes"

@@ -180,7 +180,7 @@ const StepNode = ({ data, id, selected }: NodeProps<{ step: JourneyStep; onChat:
         <div className="flex items-center gap-4 text-xs text-[#5a5a5a]">
           <div className="flex items-center gap-1">
             <BookOpen size={14} />
-            <span>{data.step.doc_urls.length} resources</span>
+            <span>{data.step.doc_urls?.length || data.step.doc_paths?.length || 0} resources</span>
           </div>
         </div>
       </div>

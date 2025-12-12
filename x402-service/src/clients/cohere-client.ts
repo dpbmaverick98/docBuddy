@@ -1,10 +1,10 @@
-import * as cohere from 'cohere-ai';
+import { CohereClient as CohereClientLib } from 'cohere-ai';
 
 export class CohereClient {
-  private client: any;
+  private client: CohereClientLib;
 
   constructor(apiKey: string) {
-    this.client = new (cohere as any)({ token: apiKey });
+    this.client = new CohereClientLib({ token: apiKey });
   }
 
   async rerank(params: {
@@ -45,13 +45,18 @@ export class CohereClient {
     texts: string[];
     model?: string;
     input_type?: string;
-  }) {
+  }): Promise<number[][]> {
     const response = await this.client.embed({
       texts: params.texts,
       model: params.model as any || 'embed-multilingual-v3.0',
       inputType: params.input_type as any || 'search_document',
     });
 
-    return response.embeddings;
+    // Handle different response types
+    if (Array.isArray(response.embeddings)) {
+      return response.embeddings;
+    }
+    // If it's an object with embeddings property, extract it
+    return (response.embeddings as any).embeddings || [];
   }
 }

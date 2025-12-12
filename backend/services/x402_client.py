@@ -8,7 +8,23 @@ import json
 import time
 from typing import Dict, List, Optional
 from web3 import Web3
-from eth_account import Account
+from eth_account.account import Account
+from eth_account.messages import encode_defunct
+
+# Optional imports for fallbacks
+try:
+    import cohere
+    COHERE_AVAILABLE = True
+except ImportError:
+    COHERE_AVAILABLE = False
+    print("⚠️ Cohere library not available for fallback")
+
+try:
+    import openai
+    OPENAI_AVAILABLE = True
+except ImportError:
+    OPENAI_AVAILABLE = False
+    print("⚠️ OpenAI library not available for fallback")
 
 class X402Client:
     """HTTP-based x402 client for DocsBuddy"""
@@ -64,7 +80,6 @@ class X402Client:
         }
 
         print(f"💳 Making x402 payment request: {endpoint} (${amount}¢)")
-        print(f"   Payload: {payment_payload}")
 
         try:
             response = requests.post(
@@ -87,56 +102,148 @@ class X402Client:
 
         except requests.exceptions.RequestException as e:
             print(f"❌ x402 request failed: {e}")
-            raise
+            # Return None to trigger fallback mechanism
+            return None
 
     def k2_generate(self, prompt: str, max_tokens: int = 1000, temperature: float = 0.7) -> str:
-        """Call K2 via x402 service"""
+        """Call K2 via x402 service with fallback to direct API"""
         cost = os.getenv('X402_K2_CHAT_COST', '50')  # Default $0.50
 
-        result = self._make_payment_request('/v1/k2/chat/completions', {
-            'messages': [{'role': 'user', 'content': prompt}],
-            'max_tokens': max_tokens,
-            'temperature': temperature,
-        }, cost)
+        try:
+            result = self._make_payment_request('/v1/k2/chat/completions', {
+                'messages': [{'role': 'user', 'content': prompt}],
+                'max_tokens': max_tokens,
+                'temperature': temperature,
+            }, cost)
 
-        return result['choices'][0]['message']['content']
+            if result:
+                return result['choices'][0]['message']['content']
+        except Exception as e:
+            print(f"⚠️ x402 K2 request failed, falling back to direct API: {e}")
+
+        # Fallback to direct HuggingFace API
+        try:
+            import openai
+            client = openai.OpenAI(
+                base_url="https://router.huggingface.co/v1",
+                api_key=os.getenv('HF_TOKEN')
+            )
+            completion = client.chat.completions.create(
+                model="moonshotai/Kimi-K2-Instruct:novita",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=max_tokens,
+                temperature=temperature
+            )
+            print("✅ Fallback to direct K2 API successful")
+            return completion.choices[0].message.content.strip()
+        except Exception as fallback_error:
+            print(f"❌ Fallback also failed: {fallback_error}")
+            raise Exception("Both x402 and direct K2 API failed")
 
     def cohere_rerank(self, query: str, documents: List[str], top_n: int = 5) -> List[Dict]:
-        """Call Cohere rerank via x402 service"""
+        """Call Cohere rerank via x402 service with fallback"""
         cost = os.getenv('X402_COHERE_RERANK_COST', '10')  # Default $0.10
 
-        result = self._make_payment_request('/v1/cohere/rerank', {
-            'query': query,
-            'documents': documents,
-            'top_n': top_n,
-        }, cost)
+        try:
+            result = self._make_payment_request('/v1/cohere/rerank', {
+                'query': query,
+                'documents': documents,
+                'top_n': top_n,
+            }, cost)
 
-        return result['results']
+            if result:
+                return result['results']
+        except Exception as e:
+            print(f"⚠️ x402 Cohere rerank failed, falling back to direct API: {e}")
+
+        # Fallback to direct Cohere API
+        if COHERE_AVAILABLE:
+            try:
+                client = cohere.Client(api_key=os.getenv('COHERE_API_KEY'))
+                response = client.rerank(
+                    query=query,
+                    documents=documents,
+                    top_n=min(top_n, len(documents)),
+                    model="rerank-english-v3.0"
+                )
+                print("✅ Fallback to direct Cohere rerank successful")
+                return [{
+                    "index": r.index,
+                    "relevance_score": r.relevance_score,
+                    "document": {"text": r.document.text if hasattr(r.document, 'text') else str(r.document)}
+                } for r in response.results]
+            except Exception as fallback_error:
+                print(f"❌ Cohere rerank fallback failed: {fallback_error}")
+
+        # Ultimate fallback: return documents with default scores
+        print("⚠️ Using basic fallback for rerank (no Cohere API)")
+        return [{"index": i, "relevance_score": 0.5, "document": {"text": doc}}
+                for i, doc in enumerate(documents[:top_n])]
 
     def cohere_chat(self, message: str, max_tokens: int = 100, temperature: float = 0.2) -> str:
-        """Call Cohere chat via x402 service"""
+        """Call Cohere chat via x402 service with fallback"""
         cost = os.getenv('X402_COHERE_CHAT_COST', '5')  # Default $0.05
 
-        result = self._make_payment_request('/v1/cohere/chat', {
-            'message': message,
-            'max_tokens': max_tokens,
-            'temperature': temperature,
-        }, cost)
+        try:
+            result = self._make_payment_request('/v1/cohere/chat', {
+                'message': message,
+                'max_tokens': max_tokens,
+                'temperature': temperature,
+            }, cost)
 
-        return result['text']
+            if result:
+                return result['text']
+        except Exception as e:
+            print(f"⚠️ x402 Cohere chat failed, falling back to direct API: {e}")
+
+        # Fallback to direct Cohere API
+        if COHERE_AVAILABLE:
+            try:
+                client = cohere.Client(api_key=os.getenv('COHERE_API_KEY'))
+                response = client.chat(
+                    message=message,
+                    max_tokens=max_tokens,
+                    temperature=temperature
+                )
+                print("✅ Fallback to direct Cohere chat successful")
+                return response.text
+            except Exception as fallback_error:
+                print(f"❌ Cohere chat fallback failed: {fallback_error}")
+
+        raise Exception("Both x402 and direct Cohere chat API failed")
 
     def cohere_embed(self, texts: List[str], model: str = 'embed-multilingual-v3.0',
                      input_type: str = 'search_document') -> List[List[float]]:
-        """Call Cohere embed via x402 service"""
+        """Call Cohere embed via x402 service with fallback"""
         cost = os.getenv('X402_COHERE_EMBED_COST', '2')  # Default $0.02
 
-        result = self._make_payment_request('/v1/cohere/embed', {
-            'texts': texts,
-            'model': model,
-            'input_type': input_type,
-        }, cost)
+        try:
+            result = self._make_payment_request('/v1/cohere/embed', {
+                'texts': texts,
+                'model': model,
+                'input_type': input_type,
+            }, cost)
 
-        return result['embeddings']
+            if result:
+                return result['embeddings']
+        except Exception as e:
+            print(f"⚠️ x402 Cohere embed failed, falling back to direct API: {e}")
+
+        # Fallback to direct Cohere API
+        if COHERE_AVAILABLE:
+            try:
+                client = cohere.Client(api_key=os.getenv('COHERE_API_KEY'))
+                response = client.embed(
+                    texts=texts,
+                    model=model,
+                    input_type=input_type
+                )
+                print("✅ Fallback to direct Cohere embed successful")
+                return response.embeddings
+            except Exception as fallback_error:
+                print(f"❌ Cohere embed fallback failed: {fallback_error}")
+
+        raise Exception("Both x402 and direct Cohere embed API failed")
 
     def test_connection(self) -> bool:
         """Test connection to x402 service"""

@@ -7,9 +7,16 @@ import requests
 import json
 import time
 from typing import Dict, List, Optional
-from web3 import Web3
-from eth_account.account import Account
-from eth_account.messages import encode_defunct
+
+# Optional imports for web3 and ethereum functionality
+try:
+    from web3 import Web3
+    from eth_account.account import Account
+    from eth_account.messages import encode_defunct
+    WEB3_AVAILABLE = True
+except ImportError:
+    WEB3_AVAILABLE = False
+    print("⚠️ web3 library not available - wallet functionality disabled")
 
 # Optional imports for fallbacks
 try:
@@ -38,8 +45,10 @@ class X402Client:
         self.private_key = os.getenv('X402_WALLET_PRIVATE_KEY')
         self.wallet_address = os.getenv('X402_WALLET_ADDRESS')
 
-        if self.private_key:
+        if WEB3_AVAILABLE and self.private_key:
             self.account = Account.from_key(self.private_key)
+        elif not WEB3_AVAILABLE:
+            print("⚠️  web3 not available - wallet functionality disabled")
         else:
             print("⚠️  X402_WALLET_PRIVATE_KEY not set - payments will fail")
 
@@ -59,14 +68,22 @@ class X402Client:
         # Create message for signing
         message = json.dumps(payload, sort_keys=True, separators=(',', ':'))
 
-        # Sign the message
-        if self.account:
-            signature = self.account.sign_message(
-                encode_defunct(text=message)
-            )
-            payload['signature'] = signature.signature.hex()
+        # Sign the message if web3 is available
+        if WEB3_AVAILABLE and hasattr(self, 'account') and self.account:
+            try:
+                signature = self.account.sign_message(
+                    encode_defunct(text=message)
+                )
+                payload['signature'] = signature.signature.hex()
+            except Exception as e:
+                print(f"⚠️  Failed to sign payment: {e}")
+                payload['signature'] = ''
+        elif not WEB3_AVAILABLE:
+            print("⚠️  web3 not available - payment signature disabled")
+            payload['signature'] = ''
         else:
             print("⚠️  No wallet configured - payment signature missing")
+            payload['signature'] = ''
 
         return payload
 

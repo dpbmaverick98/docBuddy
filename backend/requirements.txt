@@ -37,3 +37,7 @@ redis==5.0.1
 # Utilities
 python-multipart==0.0.6
 
+# x402 Payment Support
+x402>=1.0.0
+eth-account==0.10.0
+

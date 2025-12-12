@@ -1,6 +1,7 @@
 """
 x402 HTTP client for DocsBuddy
-Makes payment-enabled requests to x402 AI service
+Manual implementation compatible with Python 3.9
+Follows x402 protocol specification
 """
 import os
 import requests
@@ -8,36 +9,27 @@ import json
 import time
 from typing import Dict, List, Optional
 
-# Optional imports for web3 and ethereum functionality
+# Load environment variables
 try:
-    from web3 import Web3
-    from eth_account.account import Account
+    from dotenv import load_dotenv
+    load_dotenv()
+except Exception as e:
+    print(f"⚠️  Could not load .env file: {e}")
+
+# Import web3 and ethereum functionality
+try:
+    from eth_account import Account
     from eth_account.messages import encode_defunct
     WEB3_AVAILABLE = True
-except ImportError:
+except ImportError as e:
     WEB3_AVAILABLE = False
-    print("⚠️ web3 library not available - wallet functionality disabled")
-
-# Optional imports for fallbacks
-try:
-    import cohere
-    COHERE_AVAILABLE = True
-except ImportError:
-    COHERE_AVAILABLE = False
-    print("⚠️ Cohere library not available for fallback")
-
-try:
-    import openai
-    OPENAI_AVAILABLE = True
-except ImportError:
-    OPENAI_AVAILABLE = False
-    print("⚠️ OpenAI library not available for fallback")
+    print(f"⚠️ eth_account not available: {e}")
 
 class X402Client:
-    """HTTP-based x402 client for DocsBuddy"""
+    """HTTP-based x402 client for DocsBuddy - Python 3.9 compatible"""
 
     def __init__(self):
-        self.service_url = os.getenv('X402_SERVICE_URL', 'http://localhost:3000')
+        self.service_url = os.getenv('X402_SERVICE_URL', 'http://localhost:6969')
         self.facilitator_url = os.getenv('X402_FACILITATOR_URL', 'https://open.x402.host')
         self.network = os.getenv('X402_NETWORK', 'base')
 
@@ -45,222 +37,189 @@ class X402Client:
         self.private_key = os.getenv('X402_WALLET_PRIVATE_KEY')
         self.wallet_address = os.getenv('X402_WALLET_ADDRESS')
 
-        if WEB3_AVAILABLE and self.private_key:
-            self.account = Account.from_key(self.private_key)
-        elif not WEB3_AVAILABLE:
-            print("⚠️  web3 not available - wallet functionality disabled")
-        else:
-            print("⚠️  X402_WALLET_PRIVATE_KEY not set - payments will fail")
+        if not WEB3_AVAILABLE:
+            raise Exception("eth_account not installed. Install with: pip install eth-account")
 
-    def _generate_payment_payload(self, amount: str) -> Dict:
-        """Generate x402 payment payload"""
+        if not self.private_key:
+            raise Exception("X402_WALLET_PRIVATE_KEY not set in .env file")
+
+        try:
+            # Create account from private key
+            self.account = Account.from_key(self.private_key)
+            
+            # Verify wallet address matches
+            if self.wallet_address and self.account.address.lower() != self.wallet_address.lower():
+                print(f"⚠️  Wallet address mismatch: {self.account.address} != {self.wallet_address}")
+            
+            print("✅ x402 wallet configured successfully")
+        except Exception as e:
+            print(f"❌ Error creating x402 client: {e}")
+            raise Exception(f"Failed to initialize x402 client: {e}")
+
+    def _generate_payment_payload(self, amount: str, recipient_address: Optional[str] = None) -> Dict:
+        """Generate x402 payment payload following the protocol spec"""
         timestamp = int(time.time())
 
+        # Build payload with all required fields
+        # CRITICAL: Use addresses in their original format (checksum) - don't convert to lowercase
+        # The message must match byte-for-byte when signing and verifying
         payload = {
+            'amount': str(amount),  # Ensure string format
+            'client_address': self.account.address,  # Keep checksum format (e.g., "0xBA4A3e4b89e004c0F7A8cb862266703A71B973Cd")
+            'currency': 'USDC',
             'network': self.network,
             'scheme': 'exact',
-            'amount': amount,
-            'currency': 'USDC',
             'timestamp': timestamp,
-            'client_address': self.wallet_address or '',
         }
+        
+        # Include recipient_address if provided (required for payment signing)
+        # Keep original casing - don't convert to lowercase
+        if recipient_address:
+            payload['recipient_address'] = recipient_address
 
-        # Create message for signing
-        message = json.dumps(payload, sort_keys=True, separators=(',', ':'))
+        # Create message for signing - sort keys alphabetically (matches x402 spec)
+        # Use json.dumps with sort_keys=True - this handles sorting automatically
+        # separators=(',', ':') ensures compact JSON (no spaces) to match server
+        message = json.dumps(payload, separators=(',', ':'), sort_keys=True)
 
-        # Sign the message if web3 is available
-        if WEB3_AVAILABLE and hasattr(self, 'account') and self.account:
+        # Sign the message using Ethereum message signing (matches x402 spec)
+        if WEB3_AVAILABLE and self.account:
             try:
-                signature = self.account.sign_message(
-                    encode_defunct(text=message)
-                )
-                payload['signature'] = signature.signature.hex()
+                # Log what we're signing (for debugging)
+                print(f"📝 Signing payment message:")
+                print(f"   Message: {message}")
+                print(f"   Message length: {len(message)} bytes")
+                print(f"   Wallet address: {self.account.address}")
+                print(f"   Recipient address: {recipient_address or 'N/A'}")
+                
+                # encode_defunct creates: "\x19Ethereum Signed Message:\n" + len(message) + message
+                message_hash = encode_defunct(text=message)
+                signed_message = self.account.sign_message(message_hash)
+                payload['signature'] = signed_message.signature.hex()
+                
+                # Add debug info (for troubleshooting - remove in production)
+                import hashlib
+                message_hash_hex = hashlib.sha256(message.encode()).hexdigest()
+                print(f"🔐 Message SHA256: {message_hash_hex[:16]}...")
+                print(f"🔐 Signature: {payload['signature'][:20]}...")
+                print(f"🔐 Signed payment: {amount} {payload['currency']} to {recipient_address or 'N/A'}")
             except Exception as e:
                 print(f"⚠️  Failed to sign payment: {e}")
-                payload['signature'] = ''
-        elif not WEB3_AVAILABLE:
-            print("⚠️  web3 not available - payment signature disabled")
-            payload['signature'] = ''
-        else:
-            print("⚠️  No wallet configured - payment signature missing")
-            payload['signature'] = ''
+                raise Exception(f"Payment signing failed: {e}")
 
         return payload
 
-    def _make_payment_request(self, endpoint: str, data: Dict, amount: str) -> Dict:
-        """Make request with x402 payment verification"""
-        payment_payload = self._generate_payment_payload(amount)
-
+    def _make_payment_request(self, endpoint: str, data: Dict, timeout: int = 120) -> Dict:
+        """
+        Make request with x402 payment verification - follows x402 protocol
+        
+        Args:
+            endpoint: API endpoint path
+            data: Request payload
+            timeout: Request timeout in seconds (default: 120 for long K2 responses)
+        """
+        url = f"{self.service_url}{endpoint}"
+        
+        # First request - no payment header (x402 protocol)
         headers = {
             'Content-Type': 'application/json',
-            'X402-Payment': json.dumps(payment_payload),
         }
 
-        print(f"💳 Making x402 payment request: {endpoint} (${amount}¢)")
+        print(f"💳 Making x402 request: {endpoint} (no initial payment header, timeout={timeout}s)")
 
         try:
-            response = requests.post(
-                f"{self.service_url}{endpoint}",
-                json=data,
-                headers=headers,
-                timeout=30
-            )
+            # First request - server will return 402 with payment requirements
+            response = requests.post(url, json=data, headers=headers, timeout=timeout)
 
             if response.status_code == 402:
-                # Payment required - return the payment details
+                # Payment required - extract payment details from 402 response
                 payment_info = response.json()
                 print(f"💰 Payment required: {payment_info}")
-                raise Exception(f"Payment required: {payment_info}")
 
-            response.raise_for_status()
-            result = response.json()
-            print(f"✅ Payment successful, received response")
-            return result
+                # Extract required payment details
+                payment_required = payment_info.get('payment_required', {})
+                required_amount = payment_required.get('amount')
+                recipient_address = payment_required.get('recipient_address')
+
+                if not required_amount or not recipient_address:
+                    raise Exception(f"Invalid 402 response - missing payment details: {payment_info}")
+
+                print(f"🔄 Creating signed payment: {required_amount} USDC to {recipient_address}")
+
+                # Create signed payment payload
+                signed_payload = self._generate_payment_payload(required_amount, recipient_address)
+
+                # Add X402-Payment header for retry
+                headers['X402-Payment'] = json.dumps(signed_payload)
+
+                # Retry the request with signed payment
+                print(f"🔄 Retrying request with signed payment...")
+                retry_response = requests.post(url, json=data, headers=headers, timeout=timeout)
+
+                if retry_response.status_code == 200:
+                    result = retry_response.json()
+                    print(f"✅ Payment signed and accepted, received response")
+                    return result
+                else:
+                    error_text = retry_response.text
+                    raise Exception(f"Signed payment rejected: {retry_response.status_code} - {error_text}")
+
+            elif response.status_code == 200:
+                # Free request - no payment needed
+                result = response.json()
+                print(f"✅ Free request successful, received response")
+                return result
+            else:
+                error_text = response.text
+                raise Exception(f"x402 request failed: {response.status_code} - {error_text}")
 
         except requests.exceptions.RequestException as e:
-            print(f"❌ x402 request failed: {e}")
-            # Return None to trigger fallback mechanism
-            return None
+            raise Exception(f"x402 network error: {e}")
 
     def k2_generate(self, prompt: str, max_tokens: int = 1000, temperature: float = 0.7) -> str:
-        """Call K2 via x402 service with fallback to direct API"""
-        cost = os.getenv('X402_K2_CHAT_COST', '50')  # Default $0.50
+        """
+        Call K2 via x402 service
+        
+        Uses longer timeout (180s) for K2 requests as they can generate long responses
+        """
+        result = self._make_payment_request('/v1/k2/chat/completions', {
+            'messages': [{'role': 'user', 'content': prompt}],
+            'max_tokens': max_tokens,
+            'temperature': temperature,
+        }, timeout=180)  # 3 minutes for K2 responses
 
-        try:
-            result = self._make_payment_request('/v1/k2/chat/completions', {
-                'messages': [{'role': 'user', 'content': prompt}],
-                'max_tokens': max_tokens,
-                'temperature': temperature,
-            }, cost)
-
-            if result:
-                return result['choices'][0]['message']['content']
-        except Exception as e:
-            print(f"⚠️ x402 K2 request failed, falling back to direct API: {e}")
-
-        # Fallback to direct HuggingFace API
-        try:
-            import openai
-            client = openai.OpenAI(
-                base_url="https://router.huggingface.co/v1",
-                api_key=os.getenv('HF_TOKEN')
-            )
-            completion = client.chat.completions.create(
-                model="moonshotai/Kimi-K2-Instruct:novita",
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=max_tokens,
-                temperature=temperature
-            )
-            print("✅ Fallback to direct K2 API successful")
-            return completion.choices[0].message.content.strip()
-        except Exception as fallback_error:
-            print(f"❌ Fallback also failed: {fallback_error}")
-            raise Exception("Both x402 and direct K2 API failed")
+        return result['choices'][0]['message']['content']
 
     def cohere_rerank(self, query: str, documents: List[str], top_n: int = 5) -> List[Dict]:
-        """Call Cohere rerank via x402 service with fallback"""
-        cost = os.getenv('X402_COHERE_RERANK_COST', '10')  # Default $0.10
+        """Call Cohere rerank via x402 service"""
+        result = self._make_payment_request('/v1/cohere/rerank', {
+            'query': query,
+            'documents': documents,
+            'top_n': top_n,
+        })
 
-        try:
-            result = self._make_payment_request('/v1/cohere/rerank', {
-                'query': query,
-                'documents': documents,
-                'top_n': top_n,
-            }, cost)
-
-            if result:
-                return result['results']
-        except Exception as e:
-            print(f"⚠️ x402 Cohere rerank failed, falling back to direct API: {e}")
-
-        # Fallback to direct Cohere API
-        if COHERE_AVAILABLE:
-            try:
-                client = cohere.Client(api_key=os.getenv('COHERE_API_KEY'))
-                response = client.rerank(
-                    query=query,
-                    documents=documents,
-                    top_n=min(top_n, len(documents)),
-                    model="rerank-english-v3.0"
-                )
-                print("✅ Fallback to direct Cohere rerank successful")
-                return [{
-                    "index": r.index,
-                    "relevance_score": r.relevance_score,
-                    "document": {"text": r.document.text if hasattr(r.document, 'text') else str(r.document)}
-                } for r in response.results]
-            except Exception as fallback_error:
-                print(f"❌ Cohere rerank fallback failed: {fallback_error}")
-
-        # Ultimate fallback: return documents with default scores
-        print("⚠️ Using basic fallback for rerank (no Cohere API)")
-        return [{"index": i, "relevance_score": 0.5, "document": {"text": doc}}
-                for i, doc in enumerate(documents[:top_n])]
+        return result['results']
 
     def cohere_chat(self, message: str, max_tokens: int = 100, temperature: float = 0.2) -> str:
-        """Call Cohere chat via x402 service with fallback"""
-        cost = os.getenv('X402_COHERE_CHAT_COST', '5')  # Default $0.05
+        """Call Cohere chat via x402 service"""
+        result = self._make_payment_request('/v1/cohere/chat', {
+            'message': message,
+            'max_tokens': max_tokens,
+            'temperature': temperature,
+        })
 
-        try:
-            result = self._make_payment_request('/v1/cohere/chat', {
-                'message': message,
-                'max_tokens': max_tokens,
-                'temperature': temperature,
-            }, cost)
-
-            if result:
-                return result['text']
-        except Exception as e:
-            print(f"⚠️ x402 Cohere chat failed, falling back to direct API: {e}")
-
-        # Fallback to direct Cohere API
-        if COHERE_AVAILABLE:
-            try:
-                client = cohere.Client(api_key=os.getenv('COHERE_API_KEY'))
-                response = client.chat(
-                    message=message,
-                    max_tokens=max_tokens,
-                    temperature=temperature
-                )
-                print("✅ Fallback to direct Cohere chat successful")
-                return response.text
-            except Exception as fallback_error:
-                print(f"❌ Cohere chat fallback failed: {fallback_error}")
-
-        raise Exception("Both x402 and direct Cohere chat API failed")
+        return result['text']
 
     def cohere_embed(self, texts: List[str], model: str = 'embed-multilingual-v3.0',
                      input_type: str = 'search_document') -> List[List[float]]:
-        """Call Cohere embed via x402 service with fallback"""
-        cost = os.getenv('X402_COHERE_EMBED_COST', '2')  # Default $0.02
+        """Call Cohere embed via x402 service"""
+        result = self._make_payment_request('/v1/cohere/embed', {
+            'texts': texts,
+            'model': model,
+            'input_type': input_type,
+        })
 
-        try:
-            result = self._make_payment_request('/v1/cohere/embed', {
-                'texts': texts,
-                'model': model,
-                'input_type': input_type,
-            }, cost)
-
-            if result:
-                return result['embeddings']
-        except Exception as e:
-            print(f"⚠️ x402 Cohere embed failed, falling back to direct API: {e}")
-
-        # Fallback to direct Cohere API
-        if COHERE_AVAILABLE:
-            try:
-                client = cohere.Client(api_key=os.getenv('COHERE_API_KEY'))
-                response = client.embed(
-                    texts=texts,
-                    model=model,
-                    input_type=input_type
-                )
-                print("✅ Fallback to direct Cohere embed successful")
-                return response.embeddings
-            except Exception as fallback_error:
-                print(f"❌ Cohere embed fallback failed: {fallback_error}")
-
-        raise Exception("Both x402 and direct Cohere embed API failed")
+        return result['embeddings']
 
     def test_connection(self) -> bool:
         """Test connection to x402 service"""

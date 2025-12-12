@@ -79,5 +79,9 @@ async def generate_journey(request: JourneyRequest):
         return journey
         
     except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"❌ Error generating journey: {e}")
+        print(f"📋 Full traceback:\n{error_trace}")
         raise HTTPException(status_code=500, detail=f"Error generating journey: {str(e)}")
 

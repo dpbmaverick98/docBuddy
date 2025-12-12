@@ -293,8 +293,16 @@ Output only the queries, one per line."""
                     temperature=0.2
                 )
                 # 💰 x402 Payment: $0.05 USDC
-                # Create mock response object
-                response = type('MockResponse', (), {'text': response_text})()
+                if response_text:
+                    # Create mock response object
+                    response = type('MockResponse', (), {'text': response_text})()
+                else:
+                    print("⚠️ x402 cohere_chat failed, falling back to direct API")
+                    response = self.cohere.chat(
+                        message=prompt,
+                        max_tokens=100,
+                        temperature=0.2
+                    )
             else:
                 response = self.cohere.chat(
                     message=prompt,
@@ -353,6 +361,14 @@ Output only the relevant text:"""
                         temperature=0.0
                     )
                     # 💰 x402 Payment
+                    if not compressed:
+                        print("⚠️ x402 cohere_chat failed, falling back to direct API")
+                        response = self.cohere.chat(
+                            message=prompt,
+                            max_tokens=300,
+                            temperature=0.0
+                        )
+                        compressed = response.text.strip()
                 else:
                     response = self.cohere.chat(
                         message=prompt,
@@ -360,8 +376,6 @@ Output only the relevant text:"""
                         temperature=0.0
                     )
                     compressed = response.text.strip()
-
-                compressed = response.text.strip()
                 if compressed and compressed != 'N/A':
                     compressed_docs.append(compressed)
                 else:

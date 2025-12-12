@@ -1,6 +1,13 @@
 """
 FastAPI main application
 """
+try:
+    from dotenv import load_dotenv
+    load_dotenv()  # Load environment variables from .env file
+    print("✅ Environment variables loaded from .env file")
+except Exception as e:
+    print(f"⚠️  Could not load .env file: {e}")
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse

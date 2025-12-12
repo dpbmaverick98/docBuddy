@@ -52,6 +52,8 @@ app.use(express.json({ limit: '10mb' }));
 
 // Health check endpoint
 app.get('/health', (req, res) => {
+  const clientIP = req.ip || req.connection.remoteAddress;
+  console.log(`🏥 [${clientIP}] GET /health - Health check`);
   res.json({
     status: 'healthy',
     timestamp: new Date().toISOString(),
@@ -88,22 +90,28 @@ app.post(
   '/v1/k2/chat/completions',
   paymentMiddleware.createMiddleware(PRICING.K2_CHAT.toString()),
   async (req: express.Request, res: express.Response) => {
+    const clientIP = req.ip || req.connection.remoteAddress;
+    console.log(`🤖 [${clientIP}] POST /v1/k2/chat/completions - K2 request received`);
+
     try {
       const body: K2ChatRequest = req.body;
 
       // Validate request
       if (!body.messages || !Array.isArray(body.messages) || body.messages.length === 0) {
+        console.log(`❌ [${clientIP}] /v1/k2/chat/completions - Invalid request: missing messages`);
         return res.status(400).json({
           error: 'Invalid request: messages array is required'
         } as ErrorResponse);
       }
 
+      console.log(`⚡ [${clientIP}] /v1/k2/chat/completions - Calling K2 API with ${body.messages.length} messages`);
       const result = await k2Client.generate({
         messages: body.messages,
         max_tokens: body.max_tokens || 1000,
         temperature: body.temperature || 0.7,
       });
 
+      console.log(`✅ [${clientIP}] /v1/k2/chat/completions - K2 response generated (${result.length} chars)`);
       const response: K2ChatResponse = {
         choices: [{
           message: {
@@ -115,7 +123,7 @@ app.post(
 
       res.json(response);
     } catch (error: any) {
-      console.error('K2 error:', error);
+      console.error(`❌ [${clientIP}] /v1/k2/chat/completions - Error:`, error.message);
       res.status(500).json({
         error: 'Failed to generate K2 response',
         details: process.env.NODE_ENV === 'development' ? error.message : undefined

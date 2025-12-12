@@ -58,11 +58,14 @@ class VectorStore:
             metadata={"hnsw:space": "cosine"}
         )
         
-        # Initialize Cohere client
+        # Store x402_client if provided (for payment-gated query embeddings)
+        self.x402_client = x402_client
+        
+        # Always initialize Cohere client for indexing (add_chunks)
+        # Query embeddings (search) will use x402_client if available, otherwise fallback to direct Cohere
         api_key = os.getenv('COHERE_API_KEY')
         if not api_key:
             raise ValueError("COHERE_API_KEY environment variable not set")
-        
         self.cohere = CohereClient(api_key=api_key)
     
     def add_chunks(self, chunks: List[Dict], batch_size: int = 50, delay_between_batches: float = 2.0):
@@ -198,7 +201,7 @@ class VectorStore:
                         model='embed-multilingual-v3.0',
                         input_type='search_query'
                     ).embeddings[0]
-                    break
+                break
             except Exception as e:
                 if "rate limit" in str(e).lower() and attempt < max_retries - 1:
                     wait_time = 60 * (2 ** attempt)

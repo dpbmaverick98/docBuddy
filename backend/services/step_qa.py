@@ -77,6 +77,13 @@ Keep the answer concise but complete. If you don't have enough information from 
                     temperature=self.temperature
                 )
                 # 💰 x402 Payment
+                if not answer:
+                    print("⚠️ x402 failed, falling back to direct LLM")
+                    answer = self.llm.generate(
+                        prompt=prompt,
+                        max_tokens=1000,
+                        temperature=self.temperature
+                    )
             else:
                 # Use direct LLM service
                 answer = self.llm.generate(
@@ -84,6 +91,9 @@ Keep the answer concise but complete. If you don't have enough information from 
                     max_tokens=1000,
                     temperature=self.temperature
                 )
+            
+            if not answer:
+                raise Exception("No response from LLM service")
             
             return answer.strip()
             

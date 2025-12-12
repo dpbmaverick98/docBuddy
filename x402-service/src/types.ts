@@ -7,6 +7,7 @@ export interface PaymentPayload {
   currency: string;
   timestamp: number;
   client_address: string;
+  recipient_address?: string; // Optional - included when signing payment
   signature: string;
 }
 

@@ -75,7 +75,15 @@ Return ONLY valid JSON: {{
                     temperature=0.3
                 )
                 # 💰 x402 Payment: $0.50 USDC
-                print("✅ Payment successful, intent extracted")
+                if response_text:
+                    print("✅ Payment successful, intent extracted")
+                else:
+                    print("⚠️ x402 failed, falling back to direct LLM")
+                    response_text = self.llm.generate(
+                        prompt=prompt,
+                        max_tokens=500,
+                        temperature=0.3
+                    )
             else:
                 # Use direct LLM service
                 response_text = self.llm.generate(
@@ -83,6 +91,9 @@ Return ONLY valid JSON: {{
                     max_tokens=500,
                     temperature=0.3
                 )
+            
+            if not response_text:
+                raise Exception("No response from LLM service")
             
             response_text = response_text.strip()
             

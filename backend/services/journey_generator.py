@@ -66,7 +66,7 @@ class JourneyGenerator:
         self.intent_extractor = IntentExtractor(model_name=model_name, x402_client=self.x402_client)
 
         # Initialize prompt chain
-        self.prompt_chain = PromptChain(temperature=temperature, model_name=model_name, x402_client=self.x402_client)
+        self.prompt_chain = PromptChain(temperature=temperature, model_name=model_name)
 
         # Use selected model for journey generation
         if model_name == "hf-k2-openai":
@@ -183,3 +183,157 @@ class JourneyGenerator:
                 print("📝 Removed docs entirely as last resort")
 
         return response_data
+    
+    def _search_with_rag(self, user_query: str, intent: Dict, top_k: int = 25) -> List[Dict]:
+        """
+        Search for relevant docs using RAG engine with intent
+        """
+        if not self.rag_engine:
+            raise Exception("RAG engine not initialized")
+        
+        return self.rag_engine.query_with_intent(
+            query=user_query,
+            intent=intent,
+            top_k=top_k,
+            use_cohere_optimizations=True
+        )
+    
+    def _search_relevant_docs(self, user_query: str, top_k: int = 25) -> List[Dict]:
+        """
+        Search for relevant docs using vector store (non-RAG mode)
+        """
+        if not self.vector_store:
+            raise Exception("Vector store not initialized")
+        
+        results = self.vector_store.search(query=user_query, n_results=top_k)
+        return results
+    
+    def _generate_steps_with_llm(self, user_query: str, intent: Dict, docs: List[Dict], max_steps: int) -> List[Dict]:
+        """
+        Generate step-by-step journey using LLM
+        """
+        try:
+            # Build context from docs
+            context = ""
+            for i, doc in enumerate(docs[:5]):  # Use top 5 docs for context
+                context += f"\nDocument {i+1}: {doc.get('content', '')[:1000]}...\n"
+
+            # Build prompt
+            prompt = f"""Based on the user query and intent, generate a detailed step-by-step implementation guide.
+
+User Query: {user_query}
+
+User Intent: {intent}
+
+Available Documentation:
+{context}
+
+Generate {max_steps} clear, actionable steps for implementing this feature. Each step should include:
+- A clear title
+- Detailed description of what to do
+- Any prerequisites or dependencies
+- Expected outcome
+
+Format as JSON array:
+[{{"step_number": 1, "title": "Step Title", "description": "Detailed description", "prerequisites": ["item1"], "outcome": "Expected result"}}]
+
+Output only valid JSON:"""
+
+            # Use x402 if available
+            if self.model_name == "hf-k2-openai" and self.x402_client:
+                print("💳 Generating steps with x402 K2 service...")
+                response_text = self.x402_client.k2_generate(
+                    prompt=prompt,
+                    max_tokens=3000,
+                    temperature=0.3
+                )
+                # 💰 x402 Payment: $0.50 USDC
+                if response_text:
+                    print("✅ Steps generated via x402")
+                else:
+                    print("⚠️ x402 failed, falling back to direct LLM")
+                    response_text = self.llm.generate(
+                        prompt=prompt,
+                        max_tokens=3000,
+                        temperature=0.3
+                    )
+            else:
+                response_text = self.llm.generate(
+                    prompt=prompt,
+                    max_tokens=3000,
+                    temperature=0.3
+                )
+
+            if not response_text:
+                print("❌ No response from LLM")
+                return []
+
+            response_text = response_text.strip()
+
+            # Try to extract JSON
+            if "```json" in response_text:
+                parts = response_text.split("```json")
+                if len(parts) > 1:
+                    json_part = parts[1].split("```")[0].strip()
+                    if json_part:
+                        response_text = json_part
+            elif "```" in response_text:
+                parts = response_text.split("```")
+                if len(parts) > 1:
+                    json_part = parts[1].split("```")[0].strip()
+                    if json_part:
+                        response_text = json_part
+
+            # Parse JSON
+            steps = json.loads(response_text)
+
+            # Validate and clean steps
+            validated_steps = []
+            for i, step in enumerate(steps[:max_steps]):
+                if isinstance(step, dict) and 'title' in step and 'description' in step:
+                    validated_step = {
+                        'step_number': i + 1,
+                        'title': step.get('title', f'Step {i+1}'),
+                        'description': step.get('description', ''),
+                        'prerequisites': step.get('prerequisites', []),
+                        'outcome': step.get('outcome', ''),
+                        'doc_paths': [doc.get('doc_path', '') for doc in docs[:3]]  # Link to top docs
+                    }
+                    validated_steps.append(validated_step)
+
+            print(f"✅ Generated {len(validated_steps)} steps")
+            return validated_steps
+
+        except Exception as e:
+            print(f"❌ Error generating steps: {e}")
+            import traceback
+            traceback.print_exc()
+            return []
+    
+    def _validate_steps(self, steps: List[Dict], docs: List[Dict]) -> List[Dict]:
+        """
+        Validate and clean up generated steps
+        
+        Args:
+            steps: List of step dicts from LLM
+            docs: List of relevant docs
+            
+        Returns:
+            Validated and cleaned steps
+        """
+        validated_steps = []
+        
+        for i, step in enumerate(steps):
+            if isinstance(step, dict) and 'title' in step and 'description' in step:
+                # Ensure step has all required fields
+                validated_step = {
+                    'step_number': step.get('step_number', i + 1),
+                    'title': step.get('title', f'Step {i+1}'),
+                    'description': step.get('description', ''),
+                    'prerequisites': step.get('prerequisites', []),
+                    'outcome': step.get('outcome', ''),
+                    'doc_paths': step.get('doc_paths', [doc.get('doc_path', '') for doc in docs[:3]])
+                }
+                validated_steps.append(validated_step)
+        
+        return validated_steps

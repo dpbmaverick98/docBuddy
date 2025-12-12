@@ -25,7 +25,7 @@ class IntentExtractor:
 
         if model_name != "hf-k2-openai":
             # Use direct Claude service (not x402)
-        self.llm = get_llm_service(model_name)
+            self.llm = get_llm_service(model_name)
         else:
             # Will use x402 client
             self.llm = None

@@ -28,7 +28,7 @@ async def list_projects():
     try:
         # For now, return known projects. In production, you might scan the DB
         # or maintain a registry of projects
-        projects = ["privy", "stripe", "aws"]  # Add your projects here
+        projects = ["polymarket", "privy"]  # Available documentation projects
 
         project_info = []
         for project in projects:

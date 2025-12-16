@@ -12,7 +12,7 @@ router = APIRouter(prefix="/api/journey", tags=["journey"])
 class JourneyRequest(BaseModel):
     query: str
     max_steps: Optional[int] = 10
-    project: str = "privy"  # Default to your current project
+    project: str = "polymarket"  # Default to Polymarket
     model: Optional[str] = "claude"  # Add model parameter
 
 

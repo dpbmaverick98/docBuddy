@@ -52,24 +52,14 @@ const Icons = {
         />
     </div>
   ),
-  Stripe: () => (
-    <svg viewBox="0 0 40 40" fill="currentColor" className="w-3.5 h-3.5">
-       <path d="M35.1 23.3c0-2.7-2-5-6-5-6.5 0-6.1-4-6.1-5.3 0-1.7 1.6-2.9 4.3-2.9 3.2 0 6.4 1 6.4 1l1.1-5.4s-3.2-1-6.7-1c-7.3 0-11 3.7-11 9.4 0 7.8 7.3 8.3 8.9 10 1.1 1.2.7 3.2-2.1 3.2-2.3 0-7.3-1.7-7.3-1.7L15 31.4s4.8 2.2 8.7 2.2c7.6 0 11.4-3.6 11.4-9.3v-1z"/>
-    </svg>
-  ),
-  Supabase: () => (
-    <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5">
-        <path d="M21.362 9.354H10.034L13.513 0H2.638C1.526 0 .638.868.638 1.95v11.751h11.328l-3.48 9.354h10.876c1.112 0 2.001-.868 2.001-1.95V11.304c0-1.082-.889-1.95-2.001-1.95z"/>
-    </svg>
-  ),
-  Figma: () => (
-    <svg viewBox="0 0 38 57" fill="none" className="w-3.5 h-3.5">
-        <path fill="#1ABCFE" d="M19 28.5a9.5 9.5 0 1 1 19 0 9.5 9.5 0 0 1-19 0Z"/>
-        <path fill="#0ACF83" d="M0 47.5a9.5 9.5 0 0 1 9.5-9.5H19v9.5a9.5 9.5 0 1 1-19 0Z"/>
-        <path fill="#FF7262" d="M19 0v19h9.5a9.5 9.5 0 1 0 0-19H19Z"/>
-        <path fill="#F24E1E" d="M0 9.5a9.5 9.5 0 0 0 9.5 9.5H19V0H9.5A9.5 9.5 0 0 0 0 9.5Z"/>
-        <path fill="#A259FF" d="M0 28.5a9.5 9.5 0 0 0 9.5 9.5H19V19H9.5A9.5 9.5 0 0 0 0 28.5Z"/>
-    </svg>
+  Polymarket: () => (
+    <div className="w-3.5 h-3.5 relative overflow-hidden rounded-sm">
+        <img 
+            src="/polymarket-logo.png" 
+            alt="Polymarket Logo" 
+            className="w-full h-full object-contain"
+        />
+    </div>
   )
 };
 
@@ -185,16 +175,14 @@ export default function Home() {
   const [journey, setJourney] = useState<Journey | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedProject, setSelectedProject] = useState<string>("privy");
-  const [availableProjects, setAvailableProjects] = useState<string[]>(["privy", "stripe", "aws"]);
+  const [selectedProject, setSelectedProject] = useState<string>("polymarket");
+  const [availableProjects, setAvailableProjects] = useState<string[]>(["polymarket", "privy"]);
   const [selectedModel, setSelectedModel] = useState<string>("claude");
 
   // Floating icons data
   const DOCS_ICONS = [
+    { name: 'Polymarket', id: 'polymarket', icon: <Icons.Polymarket /> },
     { name: 'Privy', id: 'privy', icon: <Icons.Privy /> },
-    { name: 'Stripe', id: 'stripe', icon: <Icons.Stripe /> },
-    { name: 'Supabase', id: 'supabase', icon: <Icons.Supabase /> },
-    { name: 'Figma', id: 'figma', icon: <Icons.Figma /> },
   ];
 
   // Fetch available projects from backend

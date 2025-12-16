@@ -149,14 +149,6 @@ def get_llm_service(model_name: str = "claude") -> BaseLLMService:
     hf_model_mapping = {
         "hf-k2-openai": "moonshotai/Kimi-K2-Instruct:novita",
         "k2": "moonshotai/Kimi-K2-Instruct:novita",
-        "hf-mistral": "mistralai/Mistral-7B-Instruct-v0.2:vllm",
-        "hf-llama": "meta-llama/Llama-3.1-70B-Instruct:vllm",
-        "hf-qwen": "Qwen/Qwen2.5-72B-Instruct:vllm",
-        "hf-mixtral": "mistralai/Mixtral-8x7B-Instruct-v0.1:vllm",
-        "mistral": "mistralai/Mistral-7B-Instruct-v0.2:vllm",
-        "llama": "meta-llama/Llama-3.1-70B-Instruct:vllm",
-        "qwen": "Qwen/Qwen2.5-72B-Instruct:vllm",
-        "mixtral": "mistralai/Mixtral-8x7B-Instruct-v0.1:vllm",
     }
 
     if model_name == "claude":

@@ -119,11 +119,7 @@ const ModelSelector = ({ selected, setSelected }: { selected: string, setSelecte
     const [isOpen, setIsOpen] = useState(false);
     const models = [
         { id: 'claude', name: 'Claude Sonnet 4.5', icon: <Sparkles size={12} className="text-purple-400" /> },
-        { id: 'mistral', name: 'Mistral 7B', icon: <Zap size={12} className="text-cyan-400" /> },
-        { id: 'mixtral', name: 'Mixtral 8x7B', icon: <Layers size={12} className="text-green-400" /> },
-        { id: 'qwen', name: 'Qwen 2.5 72B', icon: <Globe size={12} className="text-blue-400" /> },
-        { id: 'llama', name: 'Llama 3.1 70B', icon: <Box size={12} className="text-orange-400" /> },
-        { id: 'k2', name: 'Kimi K2 (Fav)', icon: <Zap size={12} className="text-yellow-500" /> },
+        { id: 'k2', name: 'Kimi K2', icon: <Zap size={12} className="text-yellow-500" /> },
     ];
 
     const currentModel = models.find(m => m.id === selected) || models[0];

@@ -1,12 +1,13 @@
 """
 Documentation summarizer service
 Generates summaries from doc content stored in vector DB
-Uses Claude Sonnet 4.5
+Uses semantic truncation for better content preservation
 """
 from typing import List, Dict, Optional
 from indexer.vector_store import VectorStore
 from services.llm_service import get_llm_service
 from services.rag_engine import RAGEngine
+from services.semantic_truncation import SemanticTruncator
 import hashlib
 import json
 from dotenv import load_dotenv
@@ -528,23 +529,31 @@ Provide a concise, actionable summary for developers implementing this step."""
             
             summary = summary.strip()
             
-            # Truncate if too long, preserving complete sentences
+            # Truncate if too long, using semantic boundaries
             if len(summary) > max_length:
-                # Try to find a good sentence boundary
-                truncated = summary[:max_length]
-                # Look for sentence endings (., !, ?) near the end
-                for punct in ['.', '!', '?', '\n']:
-                    last_punct = truncated.rfind(punct)
-                    if last_punct > max_length * 0.7:  # If found in last 30% of text
-                        summary = truncated[:last_punct + 1].strip()
-                        break
-                else:
-                    # No good sentence boundary found, try word boundary
-                    last_space = truncated.rfind(' ')
-                    if last_space > max_length * 0.8:  # If found in last 20% of text
-                        summary = truncated[:last_space].strip() + '...'
+                # Use semantic truncation to preserve complete sentences and sections
+                try:
+                    truncator = SemanticTruncator(self.model_name)
+                    # Convert character limit to token limit (rough: 4 chars per token)
+                    max_tokens = max(100, int(max_length / 3))
+                    summary = truncator.truncate_intelligently(summary, max_tokens)
+                except Exception as e:
+                    print(f"⚠️ Semantic truncation failed: {e}, using fallback")
+                    # Fallback to character-based truncation
+                    truncated = summary[:max_length]
+                    # Look for sentence endings (., !, ?) near the end
+                    for punct in ['.', '!', '?', '\n']:
+                        last_punct = truncated.rfind(punct)
+                        if last_punct > max_length * 0.7:  # If found in last 30% of text
+                            summary = truncated[:last_punct + 1].strip()
+                            break
                     else:
-                        summary = truncated.strip() + '...'
+                        # No good sentence boundary found, try word boundary
+                        last_space = truncated.rfind(' ')
+                        if last_space > max_length * 0.8:  # If found in last 20% of text
+                            summary = truncated[:last_space].strip() + '...'
+                        else:
+                            summary = truncated.strip() + '...'
             
             return summary
             

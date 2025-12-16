@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, ArrowRight, FileText, Code2, Database, Box, Layers, Zap, ChevronDown } from 'lucide-react';
+import { Sparkles, ArrowRight, FileText, Code2, Database, Box, Layers, Zap, ChevronDown, Globe } from 'lucide-react';
 import JourneyCanvas from "@/components/canvas/JourneyCanvas";
 import { ReactFlowProvider } from "reactflow";
 
@@ -86,7 +86,7 @@ const ReactFlowCanvas = ({ active, journey, loading, selectedModel }: { active: 
              animate={{ opacity: 1 }}
              exit={{ opacity: 0 }}
              transition={{ duration: 0.3 }}
-             className="absolute inset-0 z-10 flex h-full w-full items-center justify-center bg-[#1e1e1e]/50 backdrop-blur-sm"
+             className="absolute inset-0 z-[1] flex h-full w-full items-center justify-center bg-[#1e1e1e]/50 backdrop-blur-sm"
            >
               <div className="bg-[#252525] p-8 rounded-2xl shadow-2xl flex flex-col items-center border border-[#3a3a3a]">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
@@ -102,7 +102,7 @@ const ReactFlowCanvas = ({ active, journey, loading, selectedModel }: { active: 
              initial={{ opacity: 0, scale: 0.98 }}
              animate={{ opacity: 1, scale: 1 }}
              transition={{ duration: 0.5, ease: "easeOut" }}
-             className="absolute inset-0 z-10"
+             className="absolute inset-0 z-[1]"
            >
              <ReactFlowProvider>
                 <JourneyCanvas journey={journey} enhancedContext={journey?.enhanced_context} selectedModel={selectedModel} />
@@ -119,7 +119,11 @@ const ModelSelector = ({ selected, setSelected }: { selected: string, setSelecte
     const [isOpen, setIsOpen] = useState(false);
     const models = [
         { id: 'claude', name: 'Claude Sonnet 4.5', icon: <Sparkles size={12} className="text-purple-400" /> },
-        { id: 'hf-k2-openai', name: 'Kimi K2-Instruct', icon: <Zap size={12} className="text-yellow-500" /> },
+        { id: 'mistral', name: 'Mistral 7B', icon: <Zap size={12} className="text-cyan-400" /> },
+        { id: 'mixtral', name: 'Mixtral 8x7B', icon: <Layers size={12} className="text-green-400" /> },
+        { id: 'qwen', name: 'Qwen 2.5 72B', icon: <Globe size={12} className="text-blue-400" /> },
+        { id: 'llama', name: 'Llama 3.1 70B', icon: <Box size={12} className="text-orange-400" /> },
+        { id: 'k2', name: 'Kimi K2 (Fav)', icon: <Zap size={12} className="text-yellow-500" /> },
     ];
 
     const currentModel = models.find(m => m.id === selected) || models[0];
@@ -139,11 +143,11 @@ const ModelSelector = ({ selected, setSelected }: { selected: string, setSelecte
             <AnimatePresence>
                 {isOpen && (
                     <motion.div
-                        initial={{ opacity: 0, y: 10 }}
+                        initial={{ opacity: 0, y: -10 }}
                         animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: 10 }}
+                        exit={{ opacity: 0, y: -10 }}
                         transition={{ duration: 0.2 }}
-                        className="absolute bottom-full mb-2 left-0 w-max bg-neutral-900 border border-neutral-800 rounded-lg shadow-xl py-1 overflow-hidden"
+                        className="absolute top-full mt-2 left-0 min-w-[200px] bg-neutral-900 border border-neutral-800 rounded-lg shadow-xl py-1 max-h-60 overflow-y-auto overflow-x-hidden flex flex-col"
                     >
                         {models.map((model) => (
                             <button
@@ -152,10 +156,10 @@ const ModelSelector = ({ selected, setSelected }: { selected: string, setSelecte
                                     setSelected(model.id);
                                     setIsOpen(false);
                                 }}
-                                className={`flex items-center gap-2 w-full px-3 py-2 text-sm text-neutral-300 hover:bg-neutral-700/50 transition-colors ${selected === model.id ? 'font-bold bg-neutral-700/30' : ''}`}
+                                className={`flex items-center gap-2 w-full px-3 py-2 text-sm text-neutral-300 hover:bg-neutral-700/50 transition-colors whitespace-nowrap ${selected === model.id ? 'font-bold bg-neutral-700/30' : ''}`}
                             >
                                 {model.icon}
-                                {model.name}
+                                <span>{model.name}</span>
                             </button>
                         ))}
                     </motion.div>
@@ -286,7 +290,7 @@ export default function Home() {
 
       {/* 3. INTERACTIVE UI LAYER */}
       {/* Centering the main content block vertically */}
-      <div className={`relative z-10 w-full h-full flex flex-col items-center pointer-events-none ${hasStarted ? 'justify-end pb-4' : 'justify-center'}`}>
+      <div className={`relative z-20 w-full h-full flex flex-col items-center pointer-events-none ${hasStarted ? 'justify-end pb-4' : 'justify-center'}`}>
         
         {/* HERO SECTION - Fades out on start */}
         <AnimatePresence>
@@ -328,7 +332,7 @@ export default function Home() {
             )}
             
             {/* Main Input Box */}
-            <div className={`relative flex flex-col bg-[#252525]/90 border border-[#3a3a3a] rounded-xl shadow-2xl backdrop-blur-xl overflow-hidden transition-all duration-500 ${hasStarted ? 'scale-90' : ''}`}>
+            <div className={`relative flex flex-col bg-[#252525]/90 border border-[#3a3a3a] rounded-xl shadow-2xl backdrop-blur-xl transition-all duration-500 ${hasStarted ? 'scale-90' : ''}`}>
                {/* Text Area - Fade out content first */}
                <AnimatePresence mode="wait" onExitComplete={() => {
                    // This triggers ONLY after the textarea has fully collapsed
@@ -345,7 +349,7 @@ export default function Home() {
                         duration: 0.4, 
                         ease: "easeInOut" 
                       }}
-                      className="w-full"
+                      className="w-full overflow-hidden"
                     >
                       <textarea
                        value={inputValue}

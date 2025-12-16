@@ -352,7 +352,7 @@ export default function JourneyCanvas({ journey, enhancedContext, selectedModel 
   );
 
   return (
-    <div className="w-full h-full bg-[#1e1e1e]">
+    <div className="w-full h-full bg-[#1e1e1e] overflow-hidden">
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -370,9 +370,10 @@ export default function JourneyCanvas({ journey, enhancedContext, selectedModel 
         zoomOnScroll={true}
         panOnDrag={true}
         zoomOnPinch={true}
-        // Prevent scroll conflicts
+        // Prevent scroll conflicts - allow ReactFlow to handle scrolling
         preventScrolling={false}
         proOptions={{ hideAttribution: true }}
+        style={{ width: '100%', height: '100%' }}
       >
         <Background color="#2d2d2d" gap={20} size={1} variant={BackgroundVariant.Dots} />
         <Controls className="!bg-[#252525] !border-[#3a3a3a]" />

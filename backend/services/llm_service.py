@@ -65,17 +65,23 @@ class ClaudeService(BaseLLMService):
             raise
 
 
-class HuggingFaceK2OpenAIService(BaseLLMService):
-    """HuggingFace K2-Instruct model via OpenAI-compatible API"""
+class HuggingFaceOpenAICompatibleService(BaseLLMService):
+    """HuggingFace models via OpenAI-compatible API"""
 
-    def __init__(self):
+    def __init__(self, model_id: str = "moonshotai/Kimi-K2-Instruct:novita"):
+        """
+        Initialize HuggingFace service with specified model
+        
+        Args:
+            model_id: HuggingFace model ID (can use :provider suffix for routing)
+        """
         self.api_key = os.getenv('HF_TOKEN')
         self.client = None
-        self.model = "moonshotai/Kimi-K2-Instruct:novita"
-        print(f"✅ HuggingFace K2-Instruct service initialized (will check token on first use)")
+        self.model = model_id
+        print(f"✅ HuggingFace service initialized with {model_id} (will check token on first use)")
 
     def generate(self, prompt: str, max_tokens: int = 1000, temperature: float = 0.7) -> str:
-        """Generate text using HuggingFace K2-Instruct via OpenAI client"""
+        """Generate text using HuggingFace models via OpenAI-compatible API"""
         try:
             # Lazy initialization - check token and create client only when needed
             if not self.api_key:
@@ -109,8 +115,15 @@ class HuggingFaceK2OpenAIService(BaseLLMService):
             return ""
 
         except Exception as e:
-            print(f"⚠️  HuggingFace K2 (OpenAI) error: {e}")
+            print(f"⚠️  HuggingFace error with {self.model}: {e}")
             raise
+
+
+# Backward compatibility alias
+class HuggingFaceK2OpenAIService(HuggingFaceOpenAICompatibleService):
+    """Legacy K2-Instruct service (use HuggingFaceOpenAICompatibleService instead)"""
+    def __init__(self):
+        super().__init__(model_id="moonshotai/Kimi-K2-Instruct:novita")
 
 
 def get_llm_service(model_name: str = "claude") -> BaseLLMService:
@@ -118,18 +131,43 @@ def get_llm_service(model_name: str = "claude") -> BaseLLMService:
     Factory function to get LLM service based on model name
 
     Args:
-        model_name: One of "claude", "hf-k2-openai"
+        model_name: One of:
+            - "claude": Claude Sonnet 4.5
+            - "hf-k2-openai" or "k2": Kimi K2-Instruct
+            - "hf-mistral": Mistral (fast, cheaper)
+            - "hf-llama": Meta Llama 3.1 (70B)
+            - "hf-qwen": Qwen 2.5 (72B)
+            - "hf-mixtral": Mixtral 8x7B (fast MoE)
+            - Custom HuggingFace model ID starting with "hf-"
 
     Returns:
         LLM service instance
     """
-    model_name = model_name.lower()
+    model_name = model_name.lower().strip()
+
+    # Map common aliases to HuggingFace model IDs
+    hf_model_mapping = {
+        "hf-k2-openai": "moonshotai/Kimi-K2-Instruct:novita",
+        "k2": "moonshotai/Kimi-K2-Instruct:novita",
+        "hf-mistral": "mistralai/Mistral-7B-Instruct-v0.2:vllm",
+        "hf-llama": "meta-llama/Llama-3.1-70B-Instruct:vllm",
+        "hf-qwen": "Qwen/Qwen2.5-72B-Instruct:vllm",
+        "hf-mixtral": "mistralai/Mixtral-8x7B-Instruct-v0.1:vllm",
+        "mistral": "mistralai/Mistral-7B-Instruct-v0.2:vllm",
+        "llama": "meta-llama/Llama-3.1-70B-Instruct:vllm",
+        "qwen": "Qwen/Qwen2.5-72B-Instruct:vllm",
+        "mixtral": "mistralai/Mixtral-8x7B-Instruct-v0.1:vllm",
+    }
 
     if model_name == "claude":
         return ClaudeService()
-    elif model_name == "hf-k2-openai":
-        # Return the service - it will check for token on first use
-        return HuggingFaceK2OpenAIService()
+    elif model_name in hf_model_mapping:
+        # Return HuggingFace service with mapped model
+        return HuggingFaceOpenAICompatibleService(hf_model_mapping[model_name])
+    elif model_name.startswith("hf-"):
+        # Custom HuggingFace model ID
+        custom_model_id = model_name[3:]  # Remove "hf-" prefix
+        return HuggingFaceOpenAICompatibleService(custom_model_id)
     else:
         print(f"⚠️  Unknown model '{model_name}', defaulting to Claude")
         return ClaudeService()

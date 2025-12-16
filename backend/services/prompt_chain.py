@@ -1,7 +1,7 @@
 """
 Prompt chaining system
 Manages multi-step prompt workflows with context optimization
-Uses Claude Sonnet 4.5
+Uses semantic truncation for better context preservation
 """
 from typing import Dict, List, Optional, Any
 from services.llm_service import get_llm_service
@@ -22,6 +22,7 @@ class PromptChain:
         """
         self.default_temperature = temperature
         self.default_max_tokens = max_tokens
+        self.model_name = model_name
 
         # Use selected model for prompt chaining
         self.llm = get_llm_service(model_name)
@@ -129,14 +130,15 @@ class PromptChain:
         max_tokens: int = 3000
     ) -> List[Dict]:
         """
-        Optimize context by selecting most relevant docs
+        Optimize context using semantic truncation
+        Intelligently preserves sentence/section boundaries and code blocks
         
         Args:
             docs: List of doc dicts with content, metadata, score
             max_tokens: Maximum tokens for context
         
         Returns:
-            Optimized list of docs
+            Optimized list of docs with semantically truncated content
         """
         # Sort by score (highest first)
         sorted_docs = sorted(
@@ -145,7 +147,14 @@ class PromptChain:
             reverse=True
         )
         
-        # Estimate tokens (rough: 1 token ≈ 4 chars)
+        # Try to use semantic truncation dynamically
+        try:
+            from services.semantic_truncation import truncate_context as semantic_truncate_fn
+            return semantic_truncate_fn(sorted_docs, max_tokens, self.model_name)
+        except Exception as e:
+            print(f"⚠️ Semantic truncation failed: {e}, falling back to character-based")
+        
+        # Fallback to character-based truncation
         selected = []
         current_tokens = 0
         

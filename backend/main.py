@@ -3,8 +3,16 @@ FastAPI main application
 """
 try:
     from dotenv import load_dotenv
-    load_dotenv()  # Load environment variables from .env file
-    print("✅ Environment variables loaded from .env file")
+    import os
+    # Load .env from backend directory explicitly
+    dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
+    load_dotenv(dotenv_path=dotenv_path)
+    print(f"✅ Environment variables loaded from {dotenv_path}")
+    # Debug: check ChromaDB path
+    import os
+    chroma_path = os.getenv('CHROMA_DB_PATH', 'NOT_SET')
+    print(f"🗄️  CHROMA_DB_PATH: {chroma_path}")
+    print(f"📁 Current working directory: {os.getcwd()}")
 except Exception as e:
     print(f"⚠️  Could not load .env file: {e}")
 

@@ -17,9 +17,11 @@ from indexer.llms_parser import fetch_llms_txt, parse_llms_txt
 from indexer.doc_fetcher import fetch_all_docs
 from indexer.chunker import split_by_headings, get_chunk_stats
 from indexer.vector_store import VectorStore
+from services.x402_client import X402Client
 from dotenv import load_dotenv
 
-load_dotenv()
+# Load .env from backend directory regardless of working directory
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '.env'))
 
 
 async def index_docs_from_llms_txt(base_url: str, project_name: str = None):
@@ -34,6 +36,10 @@ async def index_docs_from_llms_txt(base_url: str, project_name: str = None):
     collection_name = project_name.lower().replace(' ', '_') if project_name else "docs"
     print(f"🚀 Starting indexing for {base_url} (project: {project_name})")
     print("=" * 60)
+
+    # Initialize x402 client for paid embeddings (only if payments enabled)
+    use_x402 = os.getenv('USE_X402_PAYMENTS', 'false').lower() == 'true'
+    x402_client = X402Client() if use_x402 else None
     
     # Step 1: Parse llms.txt
     print("\n📄 Step 1: Fetching llms.txt...")
@@ -87,7 +93,7 @@ async def index_docs_from_llms_txt(base_url: str, project_name: str = None):
     # Step 5: Store in vector DB
     print(f"\n💾 Step 5: Storing in vector database...")
     try:
-        vector_store = VectorStore(collection_name=collection_name)
+        vector_store = VectorStore(collection_name=collection_name, x402_client=x402_client)
         
         # Check if collection already has chunks
         existing_count = vector_store.get_stats()['total_chunks']
@@ -109,7 +115,7 @@ async def index_docs_from_llms_txt(base_url: str, project_name: str = None):
                 return
         
         # Use smaller batch size and delays to avoid rate limits
-        vector_store.add_chunks(all_chunks, batch_size=50, delay_between_batches=2.0)
+        vector_store.add_documents(all_chunks, batch_size=50, delay_between_batches=2.0)
         
         # Show final stats
         final_stats = vector_store.get_stats()

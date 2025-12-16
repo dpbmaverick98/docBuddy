@@ -64,7 +64,8 @@ class JourneyGenerator:
         self.model_name = model_name
 
         # Initialize x402 client for payment-enabled services
-        self.x402_client = X402Client()
+        use_x402 = os.getenv('USE_X402_PAYMENTS', 'false').lower() == 'true'
+        self.x402_client = X402Client() if use_x402 else None
         
         if use_rag:
             # Use LlamaIndex-powered RAG engine
@@ -89,11 +90,8 @@ class JourneyGenerator:
         self.prompt_chain = PromptChain(temperature=temperature, model_name=model_name)
 
         # Use selected model for journey generation
-        if model_name == "hf-k2-openai":
-            # Will use x402 client
-            self.llm = None
-        else:
-            self.llm = get_llm_service(model_name)
+        # Always initialize LLM service as fallback, even if x402 is preferred
+        self.llm = get_llm_service(model_name)
     
     def generate_journey(
         self,
@@ -115,13 +113,15 @@ class JourneyGenerator:
         print("🚀 Starting optimized journey generation...")
 
         # Step 1: Extract intent (x402 payment, with caching)
-        print("💰 Step 1: Extracting intent (x402 payment required)...")
+        payment_mode = "x402 payments" if self.x402_client else "direct APIs"
+        print(f"💰 Step 1: Extracting intent ({payment_mode})...")
         intent = self.intent_extractor.extract_intent(user_query)
         print(f"✅ Intent extracted: {intent.get('goal')}")
         # 💰 Payment: $0.50 USDC (if using K2)
 
         # Step 2: Search for relevant docs (x402 payments, with caching)
-        print("💰 Step 2: Searching docs with RAG (x402 payments required)...")
+        payment_mode = "x402 payments" if self.x402_client else "direct APIs"
+        print(f"💰 Step 2: Searching docs with RAG ({payment_mode})...")
         if self.use_rag:
             docs = self._search_with_rag(user_query, intent, top_k=25)  # More docs for better context
         else:
@@ -138,8 +138,9 @@ class JourneyGenerator:
             return {'error': 'No relevant documentation found'}
         # 💰 Total Payments: ~$0.17 USDC (embed + chat + rerank) [with caching: ~50% hit rate]
 
-        # Step 3: Generate steps with LLM (x402 payment, optimized tokens)
-        print("💰 Step 3: Generating steps (x402 payment required)...")
+        # Step 3: Generate steps with LLM (optimized tokens)
+        payment_mode = "x402 payments" if self.x402_client else "direct APIs"
+        print(f"💰 Step 3: Generating steps ({payment_mode})...")
         steps = self._generate_steps_with_llm(user_query, intent, docs, max_steps)
 
         if not steps:
@@ -219,8 +220,9 @@ class JourneyGenerator:
 
         # Step 3: Generate steps with LLM (x402 payment)
 
-        # Step 3: Generate journey with LLM (x402 payment)
-        print("💰 Step 3: Generating steps (x402 payment required)...")
+        # Step 3: Generate journey with LLM
+        payment_mode = "x402 payments" if self.x402_client else "direct APIs"
+        print(f"💰 Step 3: Generating steps ({payment_mode})...")
         steps = self._generate_steps_with_llm(user_query, intent, docs, max_steps)
 
         if not steps:
@@ -352,21 +354,42 @@ Format as JSON array:
 
 Output only valid JSON:"""
 
-            # Use x402 if available
+            # Use x402 if available, otherwise fall back to direct LLM service
             if self.model_name == "hf-k2-openai" and self.x402_client:
                 print("💳 Generating steps with x402 K2 service...")
-                response_text = self.x402_client.k2_generate(
-                    prompt=prompt,
-                    max_tokens=3000,
-                    temperature=0.3
-                )
-                # 💰 x402 Payment: $0.50 USDC
-                if response_text:
-                    print("✅ Steps generated via x402")
-                else:
-                    print("⚠️ x402 failed, no fallback available")
-                    return []
+                try:
+                    response_text = self.x402_client.k2_generate(
+                        prompt=prompt,
+                        max_tokens=3000,
+                        temperature=0.3
+                    )
+                    # 💰 x402 Payment: $0.50 USDC
+                    if response_text:
+                        print("✅ Steps generated via x402")
+                    else:
+                        print("⚠️ x402 returned empty response, falling back to direct LLM")
+                        response_text = None
+                except Exception as e:
+                    print(f"⚠️ x402 failed: {e}, falling back to direct LLM")
+                    response_text = None
+                
+                # Fallback to direct LLM if x402 failed
+                if not response_text:
+                    if self.llm:
+                        print("🔄 Falling back to direct LLM service...")
+                        response_text = self.llm.generate(
+                            prompt=prompt,
+                            max_tokens=3000,
+                            temperature=0.3
+                        )
+                    else:
+                        print("❌ No LLM service available as fallback")
+                        return []
             else:
+                # Use direct LLM service
+                if not self.llm:
+                    print(f"❌ LLM service not initialized for model '{self.model_name}'")
+                    return []
                 response_text = self.llm.generate(
                     prompt=prompt,
                     max_tokens=3000,
@@ -377,8 +400,12 @@ Output only valid JSON:"""
                 print("❌ No response from LLM")
                 return []
 
+            # Handle TextBlock objects from x402 client
+            if hasattr(response_text, 'text'):
+                response_text = response_text.text
+
             response_text = response_text.strip()
-            
+
             # Log raw response for debugging (first 500 chars)
             print(f"📝 Raw K2 response (first 500 chars): {response_text[:500]}")
 
@@ -414,24 +441,44 @@ Output only valid JSON:"""
 
             # Parse JSON with better error handling
             try:
+                # Try to decode escaped characters first
+                import codecs
+                try:
+                    # If the string contains escaped newlines, unescape them
+                    if '\\n' in response_text:
+                        response_text = codecs.decode(response_text, 'unicode_escape')
+                except:
+                    pass  # If unescaping fails, continue with original
+
                 steps = json.loads(response_text)
             except json.JSONDecodeError as e:
                 print(f"❌ JSON parsing error: {e}")
-                print(f"📝 Attempted to parse: {response_text[:200]}...")
+                print(f"📝 Attempted to parse: {repr(response_text[:200])}...")
+                print(f"📝 First 10 chars: {repr(response_text[:10])}")
+                print(f"📝 Full response length: {len(response_text)} chars")
                 print(f"📝 Full response length: {len(response_text)} chars")
                 # Try to fix common JSON issues
-                # Remove trailing commas before closing brackets/braces
                 import re
+
+                # First, strip markdown code blocks if present
+                if response_text.strip().startswith('```'):
+                    # Extract content between ```json and ```
+                    json_match = re.search(r'```(?:json)?\s*\n?(.*?)\n?```', response_text, re.DOTALL)
+                    if json_match:
+                        response_text = json_match.group(1).strip()
+                        print("✅ Stripped markdown code blocks from response")
+
                 # Fix trailing commas in arrays/objects
                 fixed_text = re.sub(r',\s*}', '}', response_text)
                 fixed_text = re.sub(r',\s*]', ']', fixed_text)
+
                 try:
                     steps = json.loads(fixed_text)
-                    print("✅ Fixed JSON by removing trailing commas")
-                except json.JSONDecodeError:
+                    print("✅ Successfully parsed JSON response")
+                except json.JSONDecodeError as json_error:
                     # If still fails, try to extract just the array part
                     print("⚠️  JSON parsing failed, attempting to extract valid JSON...")
-                    raise Exception(f"Failed to parse JSON from K2 response. Error: {e}. Response preview: {response_text[:300]}")
+                    raise Exception(f"Failed to parse JSON from K2 response. Error: {json_error}. Response preview: {response_text[:300]}")
 
             # Validate and clean steps
             validated_steps = []

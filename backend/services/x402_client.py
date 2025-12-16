@@ -33,20 +33,43 @@ class X402Client:
     """HTTP-based x402 client for DocsBuddy - Python 3.9 compatible"""
 
     def __init__(self, protocol_version: int = 2):
-        self.service_url = os.getenv('X402_SERVICE_URL', 'http://localhost:3000')  # Updated to default port 3000
-        self.facilitator_url = os.getenv('X402_FACILITATOR_URL', 'https://open.x402.host')
-        self.network = os.getenv('X402_NETWORK', 'base')
-        self.protocol_version = protocol_version  # Default to v2, can fallback to v1
+        # Check if x402 payments are enabled
+        self.use_x402_payments = os.getenv('USE_X402_PAYMENTS', 'false').lower() == 'true'
 
-        # Wallet for payments (DocsBuddy's wallet)
-        self.private_key = os.getenv('X402_WALLET_PRIVATE_KEY')
-        self.wallet_address = os.getenv('X402_WALLET_ADDRESS')
+        if self.use_x402_payments:
+            self.service_url = os.getenv('X402_SERVICE_URL', 'http://localhost:6969')
+            self.facilitator_url = os.getenv('X402_FACILITATOR_URL', 'https://open.x402.host')
+            self.network = os.getenv('X402_NETWORK', 'base')
+            self.protocol_version = protocol_version  # Default to v2, can fallback to v1
 
-        if not WEB3_AVAILABLE:
-            raise Exception("eth_account not installed. Install with: pip install eth-account")
+            # Wallet for payments (DocsBuddy's wallet)
+            self.private_key = os.getenv('X402_WALLET_PRIVATE_KEY')
+            self.wallet_address = os.getenv('X402_WALLET_ADDRESS')
 
-        if not self.private_key:
-            raise Exception("X402_WALLET_PRIVATE_KEY not set in .env file")
+            if not WEB3_AVAILABLE:
+                raise Exception("eth_account not installed. Install with: pip install eth-account")
+
+            if not self.private_key:
+                raise Exception("X402_WALLET_PRIVATE_KEY not set in .env file")
+
+            try:
+                if WEB3_AVAILABLE and Account:
+                    self.account = Account.from_key(self.private_key)
+                    print("✅ x402 wallet configured successfully (v2 protocol)")
+                else:
+                    raise Exception("Web3 Account not available")
+            except Exception as e:
+                raise Exception(f"Failed to initialize x402 wallet: {e}")
+        else:
+            print("💡 Using direct API keys (x402 payments disabled)")
+            # For direct API mode, we don't need wallet configuration
+            self.service_url = None
+            self.facilitator_url = None
+            self.network = None
+            self.protocol_version = None
+            self.private_key = None
+            self.wallet_address = None
+            self.account = None
 
         try:
             # Create account from private key
@@ -71,6 +94,9 @@ class X402Client:
         # Build payload with all required fields
         # CRITICAL: Use addresses in their original format (checksum) - don't convert to lowercase
         # The message must match byte-for-byte when signing and verifying
+        if not self.account:
+            raise Exception("x402 wallet not configured")
+
         payload = {
             'amount': str(amount),  # Ensure string format
             'client_address': self.account.address,  # Keep checksum format (e.g., "0xBA4A3e4b89e004c0F7A8cb862266703A71B973Cd")
@@ -127,9 +153,12 @@ class X402Client:
         nonce = str(int(time.time() * 1000))  # Unique nonce
 
         # Build EIP-712 authorization structure
+        if not self.account:
+            raise Exception("x402 wallet not configured")
+
         authorization = {
             'from': self.account.address,  # Keep checksum format
-            'to': recipient_address,       # Keep checksum format  
+            'to': recipient_address,       # Keep checksum format
             'value': str(amount),
             'validAfter': valid_after,
             'validBefore': valid_before,
@@ -275,10 +304,14 @@ class X402Client:
 
     def k2_generate(self, prompt: str, max_tokens: int = 1000, temperature: float = 0.7) -> str:
         """
-        Call K2 via x402 service
-        
-        Uses longer timeout (180s) for K2 requests as they can generate long responses
+        Generate text using K2 - either via x402 payments or direct API
         """
+
+        if not self.use_x402_payments:
+            # Use direct HuggingFace API
+            return self._k2_generate_direct(prompt, max_tokens, temperature)
+
+        # Use x402 payments
         result = self._make_payment_request('/v1/k2/chat/completions', {
             'messages': [{'role': 'user', 'content': prompt}],
             'max_tokens': max_tokens,
@@ -286,6 +319,42 @@ class X402Client:
         }, timeout=180)  # 3 minutes for K2 responses
 
         return result['choices'][0]['message']['content']
+
+    def _k2_generate_direct(self, prompt: str, max_tokens: int = 1000, temperature: float = 0.7) -> str:
+        """Generate text directly using HuggingFace API"""
+        import requests
+
+        api_key = os.getenv('HF_TOKEN')
+        if not api_key:
+            raise Exception("HF_TOKEN not set in .env file (required when USE_X402_PAYMENTS=false)")
+
+        headers = {
+            'Authorization': f'Bearer {api_key}',
+            'Content-Type': 'application/json'
+        }
+
+        data = {
+            'inputs': prompt,
+            'parameters': {
+                'max_new_tokens': max_tokens,
+                'temperature': temperature,
+                'do_sample': True
+            }
+        }
+
+        response = requests.post(
+            'https://api-inference.huggingface.co/models/k2-foundation/k2-0.5b',
+            headers=headers,
+            json=data
+        )
+
+        if response.status_code == 200:
+            result = response.json()
+            if isinstance(result, list) and len(result) > 0:
+                return result[0].get('generated_text', '')
+            return ''
+        else:
+            raise Exception(f"HuggingFace API error: {response.status_code} - {response.text}")
 
     def cohere_rerank(self, query: str, documents: List[str], top_n: int = 5) -> List[Dict]:
         """Call Cohere rerank via x402 service"""
@@ -309,7 +378,13 @@ class X402Client:
 
     def cohere_embed(self, texts: List[str], model: str = 'embed-multilingual-v3.0',
                      input_type: str = 'search_document') -> List[List[float]]:
-        """Call Cohere embed via x402 service"""
+        """Get embeddings from Cohere - either via x402 payments or direct API"""
+
+        if not self.use_x402_payments:
+            # Use direct Cohere API
+            return self._cohere_embed_direct(texts, model, input_type)
+
+        # Use x402 payments
         result = self._make_payment_request('/v1/cohere/embed', {
             'texts': texts,
             'model': model,
@@ -317,6 +392,24 @@ class X402Client:
         })
 
         return result['embeddings']
+
+    def _cohere_embed_direct(self, texts: List[str], model: str = 'embed-multilingual-v3.0',
+                           input_type: str = 'search_document') -> List[List[float]]:
+        """Get embeddings directly from Cohere API using API key"""
+        import cohere
+
+        api_key = os.getenv('COHERE_API_KEY')
+        if not api_key:
+            raise Exception("COHERE_API_KEY not set in .env file (required when USE_X402_PAYMENTS=false)")
+
+        co = cohere.Client(api_key)
+        response = co.embed(
+            texts=texts,
+            model=model,
+            input_type=input_type
+        )
+
+        return response.embeddings
 
     def set_protocol_version(self, version: int):
         """Switch between v1 and v2 protocol"""

@@ -92,13 +92,19 @@ class RAGEngine:
         else:
             expanded_queries = [query]
 
+        print(f"🔍 RAG query expansion: {len(expanded_queries)} variations")
+        for i, eq in enumerate(expanded_queries):
+            print(f"   {i+1}: '{eq}'")
+
         # Stage 2: Multi-query search - search all variations and merge results
         all_candidates = []
         seen_ids = set()
 
         for expanded_query in expanded_queries:
+            print(f"🔍 Searching for: '{expanded_query}'")
             # Get candidates for each query variation
             candidates = self.vector_store.search(expanded_query, n_results=top_k * 2)
+            print(f"   Found {len(candidates)} candidates")
 
             for candidate in candidates:
                 candidate_id = candidate.get('id')
@@ -317,24 +323,44 @@ Consider synonyms, different phrasings, and related technical concepts.
 Output only the queries, one per line."""
 
             if self.x402_client:
-                # Use x402 Cohere chat
-                response_text = self.x402_client.cohere_chat(
-                    message=prompt,
-                    max_tokens=100,
-                    temperature=0.2
-                )
-                # 💰 x402 Payment: $0.05 USDC
-                if response_text:
-                    # Create mock response object
-                    response = type('MockResponse', (), {'text': response_text})()
-                else:
-                    print("⚠️ x402 cohere_chat failed, falling back to direct API")
+                # Try x402 first, fallback to direct API if it fails
+                try:
+                    response_text = self.x402_client.cohere_chat(
+                        message=prompt,
+                        max_tokens=100,
+                        temperature=0.2
+                    )
+                    # 💰 x402 Payment: $0.05 USDC
+                    if response_text:
+                        # Create mock response object
+                        response = type('MockResponse', (), {'text': response_text})()
+                    else:
+                        print("⚠️ x402 cohere_chat returned empty, falling back to direct API")
+                        if not self.cohere:
+                            raise Exception("Cohere client not available for fallback")
+                        response = self.cohere.chat(
+                            message=prompt,
+                            max_tokens=100,
+                            temperature=0.2
+                        )
+                except Exception as x402_error:
+                    # Fallback to direct API if x402 fails
+                    error_msg = str(x402_error).lower()
+                    if "connection" in error_msg or "refused" in error_msg or "network" in error_msg:
+                        print(f"⚠️ x402 service unavailable ({x402_error}), falling back to direct Cohere API...")
+                    else:
+                        print(f"⚠️ x402 error: {x402_error}, falling back to direct Cohere API...")
+                    
+                    if not self.cohere:
+                        raise Exception("Cohere client not available for fallback")
                     response = self.cohere.chat(
                         message=prompt,
                         max_tokens=100,
                         temperature=0.2
                     )
             else:
+                if not self.cohere:
+                    raise Exception("Cohere client not available")
                 response = self.cohere.chat(
                     message=prompt,
                     max_tokens=100,
@@ -385,28 +411,52 @@ If no relevant content found, output 'N/A'.
 Output only the relevant text:"""
 
                 if self.x402_client:
-                    # Use x402 Cohere chat for compression
-                    compressed = self.x402_client.cohere_chat(
-                        message=prompt,
-                        max_tokens=300,
-                        temperature=0.0
-                    )
-                    # 💰 x402 Payment
-                    if not compressed:
-                        print("⚠️ x402 cohere_chat failed, falling back to direct API")
+                    # Try x402 first, fallback to direct API if it fails
+                    try:
+                        compressed = self.x402_client.cohere_chat(
+                            message=prompt,
+                            max_tokens=300,
+                            temperature=0.0
+                        )
+                        # 💰 x402 Payment
+                        if not compressed:
+                            print("⚠️ x402 cohere_chat returned empty, falling back to direct API")
+                            if not self.cohere:
+                                compressed = doc[:500] + "..." if len(doc) > 500 else doc
+                            else:
+                                response = self.cohere.chat(
+                                    message=prompt,
+                                    max_tokens=300,
+                                    temperature=0.0
+                                )
+                                compressed = response.text.strip()
+                    except Exception as x402_error:
+                        # Fallback to direct API if x402 fails
+                        error_msg = str(x402_error).lower()
+                        if "connection" in error_msg or "refused" in error_msg or "network" in error_msg:
+                            print(f"⚠️ x402 service unavailable ({x402_error}), falling back to direct Cohere API...")
+                        else:
+                            print(f"⚠️ x402 error: {x402_error}, falling back to direct Cohere API...")
+                        
+                        if not self.cohere:
+                            compressed = doc[:500] + "..." if len(doc) > 500 else doc
+                        else:
+                            response = self.cohere.chat(
+                                message=prompt,
+                                max_tokens=300,
+                                temperature=0.0
+                            )
+                            compressed = response.text.strip()
+                else:
+                    if not self.cohere:
+                        compressed = doc[:500] + "..." if len(doc) > 500 else doc
+                    else:
                         response = self.cohere.chat(
                             message=prompt,
                             max_tokens=300,
                             temperature=0.0
                         )
                         compressed = response.text.strip()
-                else:
-                    response = self.cohere.chat(
-                        message=prompt,
-                        max_tokens=300,
-                        temperature=0.0
-                    )
-                    compressed = response.text.strip()
                 if compressed and compressed != 'N/A':
                     compressed_docs.append(compressed)
                 else:

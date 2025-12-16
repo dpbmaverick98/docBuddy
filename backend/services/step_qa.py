@@ -70,15 +70,30 @@ Keep the answer concise but complete. If you don't have enough information from 
         try:
             # Use LLM for Q&A
             if self.model_name == "hf-k2-openai" and self.x402_client:
-                # Use x402 K2 service
-                answer = self.x402_client.k2_generate(
-                    prompt=prompt,
-                    max_tokens=1000,
-                    temperature=self.temperature
-                )
-                # 💰 x402 Payment
+                # Try x402 K2 service first, fallback to direct LLM if it fails
+                try:
+                    answer = self.x402_client.k2_generate(
+                        prompt=prompt,
+                        max_tokens=1000,
+                        temperature=self.temperature
+                    )
+                    # 💰 x402 Payment
+                    if not answer:
+                        print("⚠️ x402 returned empty, falling back to direct LLM")
+                        answer = None
+                except Exception as x402_error:
+                    # Fallback to direct LLM if x402 fails
+                    error_msg = str(x402_error).lower()
+                    if "connection" in error_msg or "refused" in error_msg or "network" in error_msg:
+                        print(f"⚠️ x402 service unavailable ({x402_error}), falling back to direct LLM...")
+                    else:
+                        print(f"⚠️ x402 error: {x402_error}, falling back to direct LLM...")
+                    answer = None
+                
+                # Fallback to direct LLM if x402 failed
                 if not answer:
-                    print("⚠️ x402 failed, falling back to direct LLM")
+                    if not self.llm:
+                        raise Exception("No LLM service available as fallback")
                     answer = self.llm.generate(
                         prompt=prompt,
                         max_tokens=1000,
@@ -86,6 +101,8 @@ Keep the answer concise but complete. If you don't have enough information from 
                     )
             else:
                 # Use direct LLM service
+                if not self.llm:
+                    raise Exception("LLM service not initialized")
                 answer = self.llm.generate(
                     prompt=prompt,
                     max_tokens=1000,

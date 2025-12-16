@@ -51,14 +51,21 @@ class ClaudeService(BaseLLMService):
                 messages=[{"role": "user", "content": prompt}]
             )
 
-            response_text = ""
-            for block in response.content:
-                if hasattr(block, 'text'):
-                    response_text += block.text
-                elif isinstance(block, str):
-                    response_text += block
-
-            return response_text.strip()
+            # Extract text from Claude response
+            if hasattr(response, 'content'):
+                if isinstance(response.content, str):
+                    return response.content.strip()
+                elif isinstance(response.content, list):
+                    text_parts = []
+                    for item in response.content:
+                        if isinstance(item, str):
+                            text_parts.append(item)
+                        else:
+                            text_parts.append(str(item))
+                    return ''.join(text_parts).strip()
+            
+            # Fallback to string conversion
+            return str(response).strip()
 
         except Exception as e:
             print(f"⚠️  Claude error: {e}")
@@ -100,11 +107,13 @@ class HuggingFaceK2OpenAIService(BaseLLMService):
             )
 
             if completion.choices and len(completion.choices) > 0:
-                message = completion.choices[0].message
-                if hasattr(message, 'content'):
-                    return message.content.strip()
-                elif isinstance(message, str):
-                    return message.strip()
+                choice = completion.choices[0]
+                if choice and hasattr(choice, 'message') and choice.message:
+                    message = choice.message
+                    if hasattr(message, 'content') and message.content:
+                        return message.content.strip()
+                    elif isinstance(message, str):
+                        return message.strip()
 
             return ""
 

@@ -1,5 +1,56 @@
 // Type definitions for x402 AI service
 
+// v2 Payment Payload Structure
+export interface PaymentPayloadV2 {
+  x402Version: number;
+  scheme: "exact";
+  network: string;
+  payload: ExactEvmPayload;
+}
+
+export interface ExactEvmPayload {
+  signature: string;
+  authorization: {
+    from: string;
+    to: string;
+    value: string;
+    validAfter: string;
+    validBefore: string;
+    nonce: string;
+  };
+}
+
+// v2 Payment Requirements for 402 responses
+export interface PaymentRequirements {
+  scheme: "exact";
+  network: string;
+  maxAmountRequired: string;
+  resource: string;
+  description: string;
+  mimeType: string;
+  payTo: string;
+  maxTimeoutSeconds: number;
+  asset: string;
+  outputSchema?: Record<string, any>;
+  extra?: Record<string, any>;
+}
+
+// v2 Payment Required Response
+export interface PaymentRequiredResponseV2 {
+  x402Version: number;
+  error: string;
+  accepts: PaymentRequirements[];
+}
+
+// v2 Settlement Response
+export interface SettlementResponse {
+  success: boolean;
+  transaction: string;
+  network: string;
+  payer: string;
+}
+
+// Legacy v1 Payment Payload (for backward compatibility)
 export interface PaymentPayload {
   network: string;
   scheme: string;
@@ -80,4 +131,20 @@ export interface PaymentRequiredResponse {
 export interface ErrorResponse {
   error: string;
   details?: string;
+  code?: string;
+  retryAfter?: number;
+  correlationId?: string;
+}
+
+export interface HealthStatus {
+  status: 'healthy' | 'degraded' | 'unhealthy';
+  timestamp: string;
+  version: string;
+  pricing: Record<string, number>;
+  services: {
+    k2: 'healthy' | 'unhealthy';
+    cohere: 'healthy' | 'unhealthy';
+    facilitator: 'healthy' | 'unhealthy';
+  };
+  uptime: number;
 }

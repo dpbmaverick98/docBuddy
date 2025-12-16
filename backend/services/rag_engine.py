@@ -4,10 +4,39 @@ Uses ChromaDB directly (with Cohere embeddings) + post-processing filters + Cohe
 Simplified to avoid LlamaIndex's OpenAI embedding requirement
 """
 import os
+import hashlib
+import json
 from typing import List, Dict, Optional, Tuple
 from indexer.vector_store import VectorStore
 from cohere import Client as CohereClient
 from dotenv import load_dotenv
+
+# Import caching system
+try:
+    from .cache_manager import get_cache_manager, cache_rag_result, cache_llm_response, _make_hashable
+except ImportError:
+    get_cache_manager = None
+    def cache_rag_result(key_func=None):
+        def decorator(func):
+            return func
+        return decorator
+    def cache_llm_response(ttl: float = 3600):
+        def decorator(func):
+            return func
+        return decorator
+    
+    # Simple fallback hashable function
+    def _make_hashable(obj):
+        if obj is None:
+            return None
+        elif isinstance(obj, (str, int, float, bool)):
+            return obj
+        elif isinstance(obj, dict):
+            return str(sorted(obj.items()))
+        elif isinstance(obj, (list, tuple)):
+            return str(obj)
+        else:
+            return str(obj)
 
 load_dotenv()
 
@@ -155,6 +184,8 @@ class RAGEngine:
 
         return formatted[:top_k]
     
+    @cache_rag_result(key_func=lambda self, query, intent, top_k=20, use_cohere_optimizations=True: 
+                      ("query_with_intent", query, _make_hashable(intent), top_k, use_cohere_optimizations))
     def query_with_intent(
         self,
         query: str,

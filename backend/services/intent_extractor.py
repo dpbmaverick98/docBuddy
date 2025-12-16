@@ -8,6 +8,16 @@ from typing import Dict, Optional
 from dotenv import load_dotenv
 from services.llm_service import get_llm_service
 
+# Import caching system
+try:
+    from .cache_manager import get_cache_manager, cache_intent
+except ImportError:
+    get_cache_manager = None
+    def cache_intent():
+        def decorator(func):
+            return func
+        return decorator
+
 load_dotenv()
 
 
@@ -30,6 +40,7 @@ class IntentExtractor:
             # Will use x402 client
             self.llm = None
     
+    @cache_intent()
     def extract_intent(self, user_query: str) -> Dict:
         """
         Extract structured intent from user query

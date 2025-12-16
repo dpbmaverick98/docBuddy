@@ -3,15 +3,33 @@ ChromaDB integration for vector storage
 """
 import os
 import time
+import hashlib
 # Disable ChromaDB telemetry before importing
 os.environ["ANONYMIZED_TELEMETRY"] = "False"
 os.environ["CHROMA_TELEMETRY_DISABLED"] = "1"
+os.environ["CHROMA_LOG_LEVEL"] = "ERROR"
 
 import chromadb
 from chromadb.config import Settings
-from typing import List, Dict
+from typing import List, Dict, Optional
 from cohere import Client as CohereClient
-from cohere.error import CohereAPIError
+try:
+    from cohere.error import CohereAPIError
+except ImportError:
+    CohereAPIError = Exception  # Fallback
+
+# Import caching system
+try:
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).parent.parent))
+    from services.cache_manager import get_cache_manager, cache_embedding
+except ImportError:
+    # Fallback if cache manager not available
+    get_cache_manager = None
+    def cache_embedding(func):
+        """Simple cache decorator that does nothing"""
+        return func
 
 
 class VectorStore:
@@ -52,11 +70,57 @@ class VectorStore:
                 )
             )
         
-        # Get or create collection
-        self.collection = self.client.get_or_create_collection(
-            name=collection_name,
-            metadata={"hnsw:space": "cosine"}
-        )
+        # Get or create collection with schema error handling
+        try:
+            self.collection = self.client.get_or_create_collection(
+                name=collection_name,
+                metadata={"hnsw:space": "cosine"}
+            )
+        except Exception as e:
+            if "no such column" in str(e) and "topic" in str(e):
+                print("⚠️  ChromaDB schema error detected - resetting database...")
+                # Reset the client and create fresh database
+                if hasattr(self.client, 'reset'):
+                    self.client.reset()
+                else:
+                    # Alternative: remove the database file and recreate
+                    import shutil
+                    if persist_directory and os.path.exists(persist_directory):
+                        shutil.rmtree(persist_directory)
+                        os.makedirs(persist_directory, exist_ok=True)
+                    else:
+                        db_path = os.getenv('CHROMA_DB_PATH', './chroma_db')
+                        if os.path.exists(db_path):
+                            shutil.rmtree(db_path)
+                            os.makedirs(db_path, exist_ok=True)
+                    
+                    # Recreate the client
+                    if persist_directory:
+                        self.client = chromadb.PersistentClient(
+                            path=persist_directory,
+                            settings=Settings(
+                                anonymized_telemetry=False,
+                                allow_reset=True
+                            )
+                        )
+                    else:
+                        db_path = os.getenv('CHROMA_DB_PATH', './chroma_db')
+                        self.client = chromadb.PersistentClient(
+                            path=db_path,
+                            settings=Settings(
+                                anonymized_telemetry=False,
+                                allow_reset=True
+                            )
+                        )
+                
+                # Now try to create the collection again
+                self.collection = self.client.get_or_create_collection(
+                    name=collection_name,
+                    metadata={"hnsw:space": "cosine"}
+                )
+                print("✅ ChromaDB database reset successfully")
+            else:
+                raise
         
         # Store x402_client if provided (for payment-gated query embeddings)
         self.x402_client = x402_client
@@ -148,9 +212,17 @@ class VectorStore:
             
             # Add to ChromaDB
             try:
+                # Convert embeddings to proper format for ChromaDB
+                embeddings_list = []
+                for emb in embeddings:
+                    if isinstance(emb, list):
+                        embeddings_list.append(emb)
+                    else:
+                        embeddings_list.append(list(emb))
+                
                 self.collection.add(
                     ids=ids,
-                    embeddings=embeddings,
+                    embeddings=embeddings_list,
                     metadatas=metadatas,
                     documents=documents
                 )
@@ -165,9 +237,9 @@ class VectorStore:
         
         print(f"\n✅ Successfully indexed {total_chunks} chunks")
     
-    def search(self, query: str, n_results: int = 5, filter_metadata: Dict = None):
+    def search(self, query: str, n_results: int = 5, filter_metadata: Optional[Dict] = None):
         """
-        Search for similar chunks
+        Search for similar chunks with caching
         
         Args:
             query: Search query
@@ -177,30 +249,43 @@ class VectorStore:
         Returns:
             List of matching chunks with scores
         """
-        # Generate query embedding with retry
-        max_retries = 3
+        # Generate cache key for embeddings
+        cache_key = f"embed:{hashlib.md5(query.encode()).hexdigest()}"
+        
+        # Try to get cached embedding first
         query_embedding = None
+        if get_cache_manager:
+            query_embedding = get_cache_manager().embeddings.get(cache_key)
+        
+        # Generate query embedding with retry if not cached
+        max_retries = 3
         
         for attempt in range(max_retries):
             try:
-                if self.x402_client:
-                    # Use x402 Cohere embed
-                    print("💳 x402 payment: Cohere embedding for query...")
-                    embeddings = self.x402_client.cohere_embed(
-                        texts=[query],
-                        model='embed-multilingual-v3.0',
-                        input_type='search_query'
-                    )
-                    query_embedding = embeddings[0]
-                    # 💰 x402 Payment: $0.02 USDC
-                    print("✅ Query embedded")
-                    break
-                else:
-                    query_embedding = self.cohere.embed(
-                        texts=[query],
-                        model='embed-multilingual-v3.0',
-                        input_type='search_query'
-                    ).embeddings[0]
+                if query_embedding is None:
+                    if self.x402_client:
+                        # Use x402 Cohere embed
+                        print("💳 x402 payment: Cohere embedding for query...")
+                        embeddings = self.x402_client.cohere_embed(
+                            texts=[query],
+                            model='embed-multilingual-v3.0',
+                            input_type='search_query'
+                        )
+                        query_embedding = embeddings[0]
+                        # 💰 x402 Payment: $0.02 USDC
+                        print("✅ Query embedded")
+                        # Cache the embedding
+                        if get_cache_manager:
+                            get_cache_manager().embeddings.set(cache_key, query_embedding)
+                    else:
+                        query_embedding = self.cohere.embed(
+                            texts=[query],
+                            model='embed-multilingual-v3.0',
+                            input_type='search_query'
+                        ).embeddings[0]
+                        # Cache the embedding
+                        if get_cache_manager:
+                            get_cache_manager().embeddings.set(cache_key, query_embedding)
                 break
             except Exception as e:
                 if "rate limit" in str(e).lower() and attempt < max_retries - 1:
@@ -224,13 +309,26 @@ class VectorStore:
         
         # Format results
         formatted_results = []
-        if results['ids'] and len(results['ids'][0]) > 0:
-            for i in range(len(results['ids'][0])):
+        if results and results.get('ids') and len(results['ids']) > 0:
+            ids = results['ids']
+            documents = results.get('documents', [])
+            metadatas = results.get('metadatas', [])
+            distances = results.get('distances')
+            
+            # Handle ChromaDB response format (ids can be list of lists when using query_embeddings)
+            if isinstance(ids[0], list) if ids else False:
+                # Flatten nested lists (ChromaDB returns list of lists for query_embeddings)
+                ids = ids[0] if ids else []
+                documents = documents[0] if documents else []
+                metadatas = metadatas[0] if metadatas else []
+                distances = distances[0] if distances else []
+            
+            for i in range(len(ids)):
                 formatted_results.append({
-                    'id': results['ids'][0][i],
-                    'content': results['documents'][0][i],
-                    'metadata': results['metadatas'][0][i],
-                    'distance': results['distances'][0][i] if 'distances' in results else None
+                    'id': ids[i],
+                    'content': documents[i] if i < len(documents) else '',
+                    'metadata': metadatas[i] if i < len(metadatas) else {},
+                    'distance': distances[i] if distances and i < len(distances) else None
                 })
         
         return formatted_results

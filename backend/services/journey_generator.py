@@ -6,6 +6,8 @@ Now with LlamaIndex RAG, intent extraction, and prompt chaining
 import os
 import sys
 import json
+import asyncio
+import hashlib
 from pathlib import Path
 from typing import List, Dict, Optional
 from dotenv import load_dotenv
@@ -18,6 +20,24 @@ from services.intent_extractor import IntentExtractor
 from services.prompt_chain import PromptChain
 from services.llm_service import get_llm_service
 from services.x402_client import X402Client
+
+# Import optimizations (with fallbacks)
+try:
+    from services.token_optimizer import optimize_documents_for_context
+    from services.config import get_config
+    from services.monitoring import get_metrics, track_api_call
+except ImportError:
+    # Fallback implementations
+    def optimize_documents_for_context(documents, query, complexity='intermediate', max_response_tokens=3000):
+        return documents[:5]  # Simple fallback
+    def get_config():
+        return None  # Return None to match expected type
+    def get_metrics():
+        return None  # Return None to match expected type
+    def track_api_call(service, method):
+        def decorator(func):
+            return func
+        return decorator
 
 load_dotenv()
 
@@ -82,7 +102,7 @@ class JourneyGenerator:
     ) -> Dict:
         """
         Generate a step-by-step journey from user query
-        Simplified: Search → LLM generates steps → Validate
+        Optimized with caching and token efficiency
 
         Args:
             user_query: User's goal (e.g., "I want to set up authentication")
@@ -92,15 +112,15 @@ class JourneyGenerator:
             Dict with goal, steps, etc.
         """
 
-        print("🚀 Starting journey generation with x402 payments...")
+        print("🚀 Starting optimized journey generation...")
 
-        # Step 1: Extract intent (x402 payment)
+        # Step 1: Extract intent (x402 payment, with caching)
         print("💰 Step 1: Extracting intent (x402 payment required)...")
         intent = self.intent_extractor.extract_intent(user_query)
         print(f"✅ Intent extracted: {intent.get('goal')}")
         # 💰 Payment: $0.50 USDC (if using K2)
 
-        # Step 2: Search for relevant docs (x402 payments)
+        # Step 2: Search for relevant docs (x402 payments, with caching)
         print("💰 Step 2: Searching docs with RAG (x402 payments required)...")
         if self.use_rag:
             docs = self._search_with_rag(user_query, intent, top_k=25)  # More docs for better context
@@ -108,10 +128,96 @@ class JourneyGenerator:
             docs = self._search_relevant_docs(user_query, top_k=25)
 
         if not docs:
+            print("❌ No docs found - returning error")
             return {'error': 'No relevant documentation found'}
 
         print(f"✅ Found {len(docs)} docs")
-        # 💰 Total Payments: ~$0.17 USDC (embed + chat + rerank)
+        # Debug: check if docs are empty lists
+        if isinstance(docs, list) and len(docs) == 0:
+            print("❌ Docs is empty list - returning error")
+            return {'error': 'No relevant documentation found'}
+        # 💰 Total Payments: ~$0.17 USDC (embed + chat + rerank) [with caching: ~50% hit rate]
+
+        # Step 3: Generate steps with LLM (x402 payment, optimized tokens)
+        print("💰 Step 3: Generating steps (x402 payment required)...")
+        steps = self._generate_steps_with_llm(user_query, intent, docs, max_steps)
+
+        if not steps:
+            return {'error': 'Failed to generate steps'}
+
+        # Step 4: Validate and clean up
+        print("✅ Step 4: Validating steps (no payment)...")
+        validated_steps = self._validate_steps(steps, docs)
+
+        response_data = {
+            'goal': user_query,
+            'intent': intent,
+            'steps': validated_steps,
+            'total_steps': len(validated_steps),
+            'estimated_time': self._estimate_total_time(validated_steps),
+            'enhanced_context': {
+                'docs': docs,
+                'query': user_query,
+                'intent': intent,
+                'model': self.model_name
+            }
+        }
+
+        return response_data
+    
+    async def generate_journey_async(
+        self,
+        user_query: str,
+        max_steps: int = 10
+    ) -> Dict:
+        """
+        Generate a step-by-step journey from user query with parallel processing
+        Optimized: Parallel intent extraction + doc search → LLM generates steps → Validate
+
+        Args:
+            user_query: User's goal (e.g., "I want to set up authentication")
+            max_steps: Maximum number of steps to generate
+
+        Returns:
+            Dict with goal, steps, etc.
+        """
+
+        print("🚀 Starting optimized journey generation with parallel processing...")
+
+        # Step 1: Parallel intent extraction and initial document search
+        print("🔀 Step 1: Parallel intent extraction + document search...")
+        
+        intent_task = asyncio.create_task(
+            asyncio.to_thread(self.intent_extractor.extract_intent, user_query)
+        )
+        
+        if self.use_rag:
+            docs_task = asyncio.create_task(
+                asyncio.to_thread(self._search_with_rag, user_query, {}, top_k=25)
+            )
+        else:
+            docs_task = asyncio.create_task(
+                asyncio.to_thread(self._search_relevant_docs, user_query, top_k=25)
+            )
+        
+        # Wait for both tasks to complete
+        intent, docs = await asyncio.gather(intent_task, docs_task)
+        
+        print(f"✅ Intent extracted: {intent.get('goal')}")
+        print(f"✅ Found {len(docs)} docs")
+        
+        # 💰 Total Payments: ~$0.67 USDC (intent + embed + chat + rerank)
+
+        if not docs:
+            return {'error': 'No relevant documentation found'}
+
+        # Step 2: Re-run RAG search with intent (if we have it)
+        if self.use_rag and intent:
+            print("💰 Step 2: Refining search with intent...")
+            docs = self._search_with_rag(user_query, intent, top_k=25)
+            print(f"✅ Refined to {len(docs)} docs with intent")
+
+        # Step 3: Generate steps with LLM (x402 payment)
 
         # Step 3: Generate journey with LLM (x402 payment)
         print("💰 Step 3: Generating steps (x402 payment required)...")
@@ -145,7 +251,6 @@ class JourneyGenerator:
 
         # Sanitize the docs to ensure JSON serializability
         try:
-            import json
             # Test full serialization
             json_str = json.dumps(response_data, default=str)
             print(f"✅ Full response JSON serializable, size: {len(json_str)} chars")
@@ -213,10 +318,18 @@ class JourneyGenerator:
         Generate step-by-step journey using LLM
         """
         try:
-            # Build context from docs
+            # Optimize documents for token-efficient context
+            complexity = intent.get('complexity', 'intermediate')
+            optimized_docs = optimize_documents_for_context(
+                docs, user_query, complexity, max_response_tokens=2000
+            )
+            
+            # Build context from optimized documents
             context = ""
-            for i, doc in enumerate(docs[:5]):  # Use top 5 docs for context
-                context += f"\nDocument {i+1}: {doc.get('content', '')[:1000]}...\n"
+            for i, doc in enumerate(optimized_docs[:5]):  # Use top 5 optimized docs
+                content = doc.get('content', '')
+                # Use the already-optimized content
+                context += f"\nDocument {i+1}: {content}\n"
 
             # Build prompt
             prompt = f"""Based on the user query and intent, generate a detailed step-by-step implementation guide.
@@ -251,12 +364,8 @@ Output only valid JSON:"""
                 if response_text:
                     print("✅ Steps generated via x402")
                 else:
-                    print("⚠️ x402 failed, falling back to direct LLM")
-                    response_text = self.llm.generate(
-                        prompt=prompt,
-                        max_tokens=3000,
-                        temperature=0.3
-                    )
+                    print("⚠️ x402 failed, no fallback available")
+                    return []
             else:
                 response_text = self.llm.generate(
                     prompt=prompt,

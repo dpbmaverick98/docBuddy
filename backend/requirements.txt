@@ -7,6 +7,10 @@ python-dotenv==1.0.0
 # HTTP & Async
 aiohttp==3.9.1
 httpx==0.25.2
+aiofiles==23.2.1
+
+# Text processing for token optimization
+nltk>=3.8.1
 
 # Markdown parsing
 markdown-it-py==3.0.0
@@ -38,6 +42,5 @@ redis==5.0.1
 python-multipart==0.0.6
 
 # x402 Payment Support
-x402>=1.0.0
 eth-account==0.10.0
 

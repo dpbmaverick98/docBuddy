@@ -1,6 +1,6 @@
 {
   "name": "x402-ai-service",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "x402 payment-gated AI service for DocsBuddy",
   "main": "dist/server.js",
   "scripts": {

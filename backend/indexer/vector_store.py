@@ -251,4 +251,3 @@ class VectorStore:
             'collection_name': self.collection_name,
             'total_chunks': count
         }
-

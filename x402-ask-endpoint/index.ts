@@ -18,8 +18,19 @@ const app = new Hono();
 // CORS middleware
 app.use('*', cors({
   origin: '*',
-  allowMethods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowHeaders: ['Content-Type', 'PAYMENT-SIGNATURE', 'PAYMENT-REQUIRED', 'PAYMENT-RESPONSE'],
+  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowHeaders: [
+    'Content-Type', 
+    'Authorization', 
+    'PAYMENT-SIGNATURE', 
+    'PAYMENT-REQUIRED', 
+    'PAYMENT-RESPONSE', 
+    'access-control-expose-headers',
+    'x-payment',
+    'x-payment-response',
+    'x-request-id'
+  ],
+  exposeHeaders: ['PAYMENT-REQUIRED', 'PAYMENT-RESPONSE', 'WWW-Authenticate', 'x-payment', 'x-payment-response'],
 }));
 
 // Apply payment middleware to all routes

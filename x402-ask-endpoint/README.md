@@ -4,12 +4,12 @@ This is a Bun-based gateway server that monetizes the DocsBuddy ask endpoint usi
 
 ## Overview
 
-The server protects the `POST /api/docsbuddy/ask` endpoint with x402 payments. External requests must include valid payment signatures, or receive a 402 Payment Required response. Upon verification, requests are forwarded to the FastAPI backend with modifications (project validation, model locking).
+The server protects the `POST /api/docsbuddy/ask/{project}` endpoints with x402 payments. External requests must include valid payment signatures, or receive a 402 Payment Required response. Upon verification, requests are forwarded to the FastAPI backend with modifications (model locking).
 
 Key features:
 - x402 protocol integration
 - Base network USDC payments (1 cent per request for testing)
-- Project validation (privy/polymarket)
+- Path-based project routing (privy/polymarket)
 - Model forced to hf-k2-openai
 - Automatic settlement after successful responses
 
@@ -45,6 +45,8 @@ X402_FACILITATOR_URL=https://x402.org/facilitator  # Test facilitator; replace f
 ALLOWED_PROJECTS=privy,polymarket
 FASTAPI_URL=http://localhost:8000  # URL of your FastAPI backend
 ```
+
+**Note**: The `ALLOWED_PROJECTS` is now used for path validation instead of body validation.
 
 **Important**: This is configured for Base network with test facilitator. Get test USDC from faucets. Replace `X402_RECIPIENT_ADDRESS` with your wallet. For production mainnet, use a production facilitator URL.
 

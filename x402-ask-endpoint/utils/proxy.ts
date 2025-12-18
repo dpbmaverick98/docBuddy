@@ -1,6 +1,20 @@
 import { Context } from 'hono';
 
 export async function proxyToFastAPI(c: Context, fastAPIUrl: string): Promise<Response> {
+  // Extract project from URL path
+  const project = c.req.param('project');
+  console.log('📂 Project from path:', project);
+
+  // Validate project
+  const allowedProjects = process.env.ALLOWED_PROJECTS!.split(',');
+  if (!allowedProjects.includes(project)) {
+    console.log('❌ Invalid project:', project);
+    return new Response(JSON.stringify({ error: 'Invalid project' }), {
+      status: 404, // Not found for invalid paths
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
   // Buffer raw request body to avoid middleware consumption
   const rawBody = await c.req.text();
   console.log('🔄 Raw request body received:', rawBody);
@@ -14,25 +28,14 @@ export async function proxyToFastAPI(c: Context, fastAPIUrl: string): Promise<Re
     // Invalid JSON, use empty object
   }
 
-  // Set default project if not provided
-  if (!body.project) {
-    body.project = 'polymarket';
-  }
-
-  // Validate project
-  const allowedProjects = process.env.ALLOWED_PROJECTS!.split(',');
-  if (!allowedProjects.includes(body.project)) {
-    return new Response(JSON.stringify({ error: 'Invalid project' }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
+  // Set project from path (overrides any in body)
+  body.project = project;
 
   // Lock model to k2
   body.model = 'hf-k2-openai';
 
-  // Forward the request to FastAPI
-  const url = `${fastAPIUrl}${c.req.path}`;
+  // Forward the request to FastAPI (normalize path to /api/docsbuddy/ask)
+  const url = `${fastAPIUrl}/api/docsbuddy/ask`;
   const requestBody = JSON.stringify(body);
   console.log('📤 Forwarding request to FastAPI:', { url, method: c.req.method, body: requestBody });
 

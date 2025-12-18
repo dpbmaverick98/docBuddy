@@ -24,17 +24,16 @@ async function testAskEndpoint() {
   // 2. Create wrapped fetch with automatic payment handling
   const fetchWithPayment = wrapFetchWithPayment(fetch, account);
 
-  // 3. Prepare the ask request body
+  // 3. Prepare the ask request body (project is now in URL path)
   const requestBody = {
     question: "what are the ways to enable gas sponsorship for my app",
-    project: "privy",
     context: "i want to enable gas sponsorhsip but dont want to use 3rd party 4337 or paymaster providers to for and its too complex for me"
   };
 
   // 4. Make the request with automatic x402 payment handling
   console.log('📡 Making ask request with automatic x402 payment handling...');
   try {
-    const response = await fetchWithPayment(`${serverUrl}/api/docsbuddy/ask`, {
+    const response = await fetchWithPayment(`${serverUrl}/api/docsbuddy/ask/privy`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

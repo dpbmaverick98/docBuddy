@@ -26,7 +26,7 @@ app.use('*', cors({
 app.use('*', paymentMiddleware);
 
 // Proxy protected routes to FastAPI after payment verification
-app.use('/api/*', async (c) => {
+app.use('/api/docsbuddy/ask/:project', async (c) => {
   return proxyToFastAPI(c, process.env.FASTAPI_URL!);
 });
 
@@ -37,7 +37,7 @@ app.get('/health', (c) => c.json({ status: 'healthy' }));
 app.get('/', (c) => c.json({
   message: 'x402 Ask Endpoint Gateway',
   status: 'running',
-  protectedRoutes: ['POST /api/docsbuddy/ask'],
+  protectedRoutes: ['POST /api/docsbuddy/ask/privy', 'POST /api/docsbuddy/ask/polymarket'],
 }));
 
 export default {

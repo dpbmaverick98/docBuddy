@@ -6,9 +6,9 @@ Welcome to the DocsBuddy Ask API, a monetized Q&A service for documentation quer
 
 ## Overview
 
-- **Endpoint**: `POST /api/docsbuddy/ask`
+- **Endpoint**: `POST /api/docsbuddy/ask/{project}`
 - **Payment Required**: Yes, 0.01 USD USDC per request.
-- **Supported Projects**: `privy`, `polymarket` (defaults to `polymarket` if not specified)
+- **Supported Projects**: `privy`, `polymarket`
 - **Model**: Fixed to `hf-k2-openai` (K2)
 - **Protocol**: x402 for payments
 - **Network**: Base
@@ -19,8 +19,10 @@ The API answers questions using a RAG (Retrieval-Augmented Generation) pipeline,
 ## Endpoint
 
 ```
-POST /api/docsbuddy/ask
+POST /api/docsbuddy/ask/{project}
 ```
+
+Where `{project}` is either `privy` or `polymarket`.
 
 Base URL: `https://your-server-url` (replace with your deployed server URL).
 
@@ -31,7 +33,6 @@ Send a JSON POST request with the following body:
 ```json
 {
   "question": "How do I implement authentication?",
-  "project": "polymarket",
   "context": "Optional: previous chat, user journey, or code snippet"
 }
 ```
@@ -39,8 +40,8 @@ Send a JSON POST request with the following body:
 ### Parameters
 
 - **question** (string, required): The question to ask about the documentation.
-- **project** (string, optional): Must be "privy" or "polymarket". Defaults to "polymarket" if not specified. Invalid projects return 400 error.
 - **context** (string, optional): Additional context like chat history or code snippets to improve answer relevance.
+- **project** (path parameter, required): Must be "privy" or "polymarket" in the URL path. Invalid projects return 404 error.
 - **model** (ignored): Internally locked to "hf-k2-openai".
 
 ### Headers
@@ -72,9 +73,8 @@ const client = new x402Client({
   wallet: yourWallet, // Connected wallet for payments
 });
 
-const response = await client.post('https://your-server-url/api/docsbuddy/ask', {
+const response = await client.post('https://your-server-url/api/docsbuddy/ask/polymarket', {
   question: 'How to integrate payments?',
-  project: 'polymarket',
   context: 'User is on checkout page'
 });
 
@@ -117,8 +117,10 @@ On success (after payment):
 
 ## Errors
 
+### 404 Not Found
+- Invalid project (not "privy" or "polymarket" in URL path).
+
 ### 400 Bad Request
-- Invalid project (not "privy" or "polymarket").
 - Malformed JSON.
 
 ### 402 Payment Required
@@ -134,18 +136,18 @@ On success (after payment):
 
 1. Initial request (will fail):
    ```bash
-   curl -X POST https://your-server-url/api/docsbuddy/ask \
+   curl -X POST https://your-server-url/api/docsbuddy/ask/polymarket \
         -H "Content-Type: application/json" \
-        -d '{"question": "What is Polymarket?", "project": "polymarket"}'
+        -d '{"question": "What is Polymarket?"}'
    ```
-   Response: 402 with `PAYMENT-REQUIRED` header.
+   Response: 402 with payment instructions.
 
 2. After processing payment (replace `<signature>` with actual):
    ```bash
-   curl -X POST https://your-server-url/api/docsbuddy/ask \
+   curl -X POST https://your-server-url/api/docsbuddy/ask/polymarket \
         -H "Content-Type: application/json" \
         -H "PAYMENT-SIGNATURE: <base64-signature>" \
-        -d '{"question": "What is Polymarket?", "project": "polymarket"}'
+        -d '{"question": "What is Polymarket?"}'
    ```
    Response: JSON answer.
 
@@ -153,9 +155,8 @@ On success (after payment):
 
 ```javascript
 // Assuming x402Client handles payments
-const answer = await x402Client.post('/api/docsbuddy/ask', {
-  question: 'How to trade on Polymarket?',
-  project: 'polymarket'
+const answer = await x402Client.post('/api/docsbuddy/ask/polymarket', {
+  question: 'How to trade on Polymarket?'
 });
 console.log(answer.data.answer);
 ```
